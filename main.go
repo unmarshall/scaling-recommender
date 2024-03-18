@@ -7,10 +7,16 @@ import (
 	"os/signal"
 	"syscall"
 
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	seedmanagementv1alpha1 "github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"unmarshall/scaling-recommender/virtualenv"
 )
 
 func main() {
+	utilruntime.Must(gardencorev1beta1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(seedmanagementv1alpha1.AddToScheme(scheme.Scheme))
 	ctx := setupSignalHandler()
 	binaryAssetsPath := "/Users/i062009/Library/Application Support/io.kubebuilder.envtest/k8s/1.29.1-darwin-arm64"
 	vCluster := virtualenv.NewCluster(binaryAssetsPath)
