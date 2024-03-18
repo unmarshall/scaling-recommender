@@ -91,7 +91,7 @@ func (c *cluster) startKAPIAndEtcd() (vEnv *envtest.Environment, cfg *rest.Confi
 }
 
 func (c *cluster) startScheduler(ctx context.Context, restConfig *rest.Config) error {
-	slog.Info("setting up in-memory kube-scheduler...")
+	slog.Info("creating in-memory kube-scheduler configuration...")
 	sac, err := createSchedulerAppConfig(ctx, restConfig)
 	if err != nil {
 		return err
@@ -113,11 +113,11 @@ func (c *cluster) startScheduler(ctx context.Context, restConfig *rest.Config) e
 		return fmt.Errorf("failed to create scheduler: %w", err)
 	}
 	c.scheduler = s
-	slog.Info("starting in-memory kube-scheduler...")
 	sac.EventBroadcaster.StartRecordingToSink(ctx.Done())
 	defer sac.EventBroadcaster.Shutdown()
 	startInformersAndWaitForSync(ctx, sac, s)
 	go s.Run(ctx)
+	slog.Info("in-memory kube-scheduler started successfully")
 	return nil
 }
 
@@ -142,6 +142,5 @@ func (c *cluster) Stop() error {
 	if err := c.testEnvironment.Stop(); err != nil {
 		slog.Warn("failed to stop in-memory kube-api-server and etcd", "error", err)
 	}
-
 	return nil
 }

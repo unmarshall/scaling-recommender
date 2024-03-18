@@ -82,11 +82,14 @@ func writeKubeConfig(kubeConfigBytes []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	absolutePath, err := filepath.Abs(currentDir)
-	if err != nil {
-		return "", err
+	kubeConfigDir := filepath.Join(currentDir, "tmp")
+	if _, err = os.Stat(kubeConfigDir); os.IsNotExist(err) {
+		err = os.Mkdir(kubeConfigDir, 0755)
+		if err != nil {
+			return "", err
+		}
 	}
-	kubeConfigPath := filepath.Join(absolutePath, "tmp", "kubeconfig.yaml")
+	kubeConfigPath := filepath.Join(kubeConfigDir, "kubeconfig.yaml")
 	if err = os.WriteFile(kubeConfigPath, kubeConfigBytes, 0644); err != nil {
 		return "", err
 	}
