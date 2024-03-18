@@ -1,8 +1,10 @@
 package garden
 
 import (
+	"context"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -13,7 +15,9 @@ type ShootCoordinates struct {
 }
 
 type ShootAccess interface {
-	SyncNodes() error
+	// GetNodes returns the current nodes of the shoot.
+	GetNodes(ctx context.Context) ([]corev1.Node, error)
+	// HasExpired returns true if the admin kube config using which the client is created has expired thus expiring the shoot access
 	HasExpired() bool
 }
 
@@ -37,8 +41,13 @@ func NewShootAccess(garden string, shootCoord ShootCoordinates, kubeConfig []byt
 	}, nil
 }
 
-func (s *shootAccess) SyncNodes() error {
-	return nil
+func (s *shootAccess) GetNodes(ctx context.Context) ([]corev1.Node, error) {
+	nodes := &corev1.NodeList{}
+	err := s.client.List(ctx, nodes)
+	if err != nil {
+		return nil, err
+	}
+	return nodes.Items, nil
 }
 
 func (s *shootAccess) HasExpired() bool {

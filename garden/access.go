@@ -27,6 +27,7 @@ func NewAccess(garden string) (Access, error) {
 	return &access{
 		garden:        garden,
 		vGardenClient: gardenClient,
+		shootAccesses: make(map[ShootCoordinates]ShootAccess),
 	}, nil
 }
 
@@ -97,11 +98,11 @@ func (a *access) createShootAdminKubeConfig(ctx context.Context, shoot *gardenco
 }
 
 func createVirtualGardenClient(name string) (client.Client, error) {
-	config, err := LoadGardenConfig()
+	config, err := loadGardenConfig()
 	if err != nil {
 		return nil, err
 	}
-	gardenConfig, err := config.GetVirtualGardenConfig(name)
+	gardenConfig, err := config.getVirtualGardenConfig(name)
 	if err != nil {
 		return nil, err
 	}

@@ -13,12 +13,12 @@ type Config struct {
 	Gardens []Garden `json:"gardens"`
 }
 type Garden struct {
-	Name           string `json:"identity"`
-	KubeConfigPath string `json:"kubeconfig"`
-	Context        string `json:"context"`
+	Name           string `yaml:"identity"`
+	KubeConfigPath string `yaml:"kubeconfig"`
+	Context        string `yaml:"context"`
 }
 
-func (c *Config) GetVirtualGardenConfig(name string) (*Garden, error) {
+func (c *Config) getVirtualGardenConfig(name string) (*Garden, error) {
 	for _, g := range c.Gardens {
 		if g.Name == name {
 			return &g, nil
@@ -27,7 +27,7 @@ func (c *Config) GetVirtualGardenConfig(name string) (*Garden, error) {
 	return nil, fmt.Errorf("could not find any entry for Garden: %s", name)
 }
 
-func LoadGardenConfig() (*Config, error) {
+func loadGardenConfig() (*Config, error) {
 	basePath, err := getGardenCtlBasePath()
 	if err != nil {
 		return nil, err
@@ -44,12 +44,12 @@ func LoadGardenConfig() (*Config, error) {
 	if err = yaml.Unmarshal(cfgBytes, cfg); err != nil {
 		return nil, err
 	}
-	for _, g := range cfg.Gardens {
-		expandedPath, err := homedir.Expand(g.KubeConfigPath)
+	for i, g := range cfg.Gardens {
+		kubeConfigPath, err := homedir.Expand(g.KubeConfigPath)
 		if err != nil {
 			return nil, err
 		}
-		g.KubeConfigPath = expandedPath
+		cfg.Gardens[i].KubeConfigPath = kubeConfigPath
 	}
 	return cfg, nil
 }
@@ -59,5 +59,5 @@ func getGardenCtlBasePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(homeDir, ".Garden"), nil
+	return filepath.Join(homeDir, ".garden"), nil
 }
