@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const defaultAdminKubeConfigExpirationSeconds = 3600
+const defaultAdminKubeConfigExpirationSeconds = 86400
 
 type Access interface {
 	GetShootAccess(ctx context.Context, shootCoord ShootCoordinates) (ShootAccess, error)

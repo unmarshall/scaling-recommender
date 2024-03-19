@@ -2,14 +2,18 @@ package virtualenv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/events"
 	schedulerappconfig "k8s.io/kubernetes/cmd/kube-scheduler/app/config"
 	"k8s.io/kubernetes/pkg/scheduler"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
@@ -24,6 +28,8 @@ type Cluster interface {
 	Start(ctx context.Context) error
 	// Stop will stop the in-memory cluster.
 	Stop() error
+	// CreatePodsAsUnscheduled creates new unscheduled pods in the in-memory cluster from the given pod specs.
+	CreatePodsAsUnscheduled(ctx context.Context, pods ...corev1.Pod) error
 }
 
 // NewCluster creates a new virtual cluster. None of the components of the
@@ -68,6 +74,43 @@ func (c *cluster) Start(ctx context.Context) error {
 
 	slog.Info("Starting in-memory kube-scheduler...")
 	return c.startScheduler(ctx, c.restConfig)
+}
+
+func (c *cluster) Stop() error {
+	slog.Info("Stopping in-memory kube-api-server and etcd...")
+	if err := c.testEnvironment.Stop(); err != nil {
+		slog.Warn("failed to stop in-memory kube-api-server and etcd", "error", err)
+	}
+	// once the context passed to the scheduler gets cancelled, the scheduler will stop as well.
+	// No need to stop the scheduler explicitly.
+	return nil
+}
+
+func (c *cluster) CreatePodsAsUnscheduled(ctx context.Context, pods ...corev1.Pod) error {
+	var errs error
+	for _, pod := range pods {
+		podObjMeta := metav1.ObjectMeta{
+			Namespace:       pod.Namespace,
+			OwnerReferences: pod.OwnerReferences,
+			Labels:          pod.Labels,
+			Annotations:     pod.Annotations,
+		}
+		if pod.GenerateName != "" {
+			podObjMeta.GenerateName = pod.GenerateName
+		} else {
+			podObjMeta.Name = pod.Name
+		}
+		dupPod := &corev1.Pod{
+			ObjectMeta: podObjMeta,
+			Spec:       pod.Spec,
+		}
+		dupPod.Spec.TerminationGracePeriodSeconds = ptr.To(int64(0))
+		if err := c.client.Create(ctx, dupPod); err != nil {
+			slog.Error("failed to create pod in virtual cluster", "pod", client.ObjectKeyFromObject(dupPod), "error", err)
+			errors.Join(errs, err)
+		}
+	}
+	return errs
 }
 
 func (c *cluster) startKAPIAndEtcd() (vEnv *envtest.Environment, cfg *rest.Config, k8sClient client.Client, err error) {
@@ -135,12 +178,4 @@ func startInformersAndWaitForSync(ctx context.Context, sac *schedulerappconfig.C
 	if err := s.WaitForHandlersSync(ctx); err != nil {
 		slog.Error("waiting for kube-scheduler handlers to sync", "error", err)
 	}
-}
-
-func (c *cluster) Stop() error {
-	slog.Info("Stopping in-memory kube-api-server and etcd...")
-	if err := c.testEnvironment.Stop(); err != nil {
-		slog.Warn("failed to stop in-memory kube-api-server and etcd", "error", err)
-	}
-	return nil
 }
