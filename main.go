@@ -22,7 +22,7 @@ func main() {
 	ctx := setupSignalHandler()
 	// take this as a CLI flag
 	binaryAssetsPath := "/Users/i062009/Library/Application Support/io.kubebuilder.envtest/k8s/1.29.1-darwin-arm64"
-	vCluster := virtualenv.NewCluster(binaryAssetsPath)
+	vCluster := virtualenv.NewControlPlane(binaryAssetsPath)
 	if err := vCluster.Start(ctx); err != nil {
 		slog.Error("failed to start virtual cluster", "error", err)
 		os.Exit(1)

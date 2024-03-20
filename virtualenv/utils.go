@@ -23,13 +23,13 @@ import (
 
 func createKubeconfigFileForRestConfig(restConfig *rest.Config) ([]byte, error) {
 	clusters := make(map[string]*clientcmdapi.Cluster)
-	clusters["default-cluster"] = &clientcmdapi.Cluster{
+	clusters["default-controlPlane"] = &clientcmdapi.Cluster{
 		Server:                   restConfig.Host,
 		CertificateAuthorityData: restConfig.CAData,
 	}
 	contexts := make(map[string]*clientcmdapi.Context)
 	contexts["default-context"] = &clientcmdapi.Context{
-		Cluster:  "default-cluster",
+		Cluster:  "default-controlPlane",
 		AuthInfo: "default-user",
 	}
 	authInfos := make(map[string]*clientcmdapi.AuthInfo)
