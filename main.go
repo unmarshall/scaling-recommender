@@ -12,7 +12,8 @@ import (
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
-	"unmarshall/scaling-recommender/virtualenv"
+	"unmarshall/scaling-recommender/internal/simulation/executor"
+	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
 func main() {
@@ -28,10 +29,16 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("virtual cluster started successfully")
+	scenarioExecutor := executor.NewExecutor(vCluster)
+	go scenarioExecutor.Run()
+
 	<-ctx.Done()
+	slog.Info("shutting down virtual cluster...")
 	if err := vCluster.Stop(); err != nil {
 		slog.Error("failed to stop virtual cluster", "error", err)
 	}
+	slog.Info("shutting down scenario executor...")
+	scenarioExecutor.Shutdown()
 }
 
 func setupSignalHandler() context.Context {

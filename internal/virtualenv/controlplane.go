@@ -24,9 +24,11 @@ type ControlPlane interface {
 	Start(ctx context.Context) error
 	// Stop will stop the in-memory controlPlane.
 	Stop() error
-	// NodeControl returns the NodeControl for the in-memory controlPlane.
+	// FactoryReset will reset the in-memory controlPlane to its initial state.
+	FactoryReset() error
+	// NodeControl returns the NodeControl for the in-memory controlPlane. Should only be called after Start.
 	NodeControl() NodeControl
-	// PodControl returns the PodControl for the in-memory controlPlane.
+	// PodControl returns the PodControl for the in-memory controlPlane. Should only be called after Start.
 	PodControl() PodControl
 }
 
@@ -48,7 +50,9 @@ type controlPlane struct {
 	// testEnvironment starts kube-api-server and etcd processes in-memory.
 	testEnvironment *envtest.Environment
 	// scheduler is the Kubernetes scheduler run in-memory.
-	scheduler *scheduler.Scheduler
+	scheduler   *scheduler.Scheduler
+	nodeControl NodeControl
+	podControl  PodControl
 }
 
 func (c *controlPlane) Start(ctx context.Context) error {
@@ -69,7 +73,8 @@ func (c *controlPlane) Start(ctx context.Context) error {
 	c.testEnvironment = vEnv
 	c.restConfig = cfg
 	c.client = k8sClient
-
+	c.nodeControl = NewNodeControl(k8sClient)
+	c.podControl = NewPodControl(k8sClient)
 	slog.Info("Starting in-memory kube-scheduler...")
 	return c.startScheduler(ctx, c.restConfig)
 }
@@ -84,11 +89,32 @@ func (c *controlPlane) Stop() error {
 	return nil
 }
 
+func (c *controlPlane) FactoryReset() error {
+	slog.Info("Removing all nodes...")
+	if err := c.NodeControl().DeleteAllNodes(context.Background()); err != nil {
+		return fmt.Errorf("failed to delete all nodes: %w", err)
+	}
+	slog.Info("Removing all pods...")
+	if err := c.PodControl().DeleteAllPods(context.Background()); err != nil {
+		return fmt.Errorf("failed to delete all pods: %w", err)
+	}
+	slog.Info("In-memory controlPlane factory reset successfully")
+	return nil
+}
+
 func (c *controlPlane) NodeControl() NodeControl {
+	if c.client == nil {
+		slog.Error("controlPlane not started, first start the control plane and then call NodeControl")
+		panic("controlPlane not started")
+	}
 	return NewNodeControl(c.client)
 }
 
 func (c *controlPlane) PodControl() PodControl {
+	if c.client == nil {
+		slog.Error("controlPlane not started, first start the control plane and then call NodeControl")
+		panic("controlPlane not started")
+	}
 	return NewPodControl(c.client)
 }
 

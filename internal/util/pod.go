@@ -3,9 +3,10 @@ package util
 import (
 	"context"
 
+	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"unmarshall/scaling-recommender/api"
+	"unmarshall/scaling-recommender/internal/common"
 )
 
 // NotYetScheduledPod is a PodFilter that returns true if the pod is not yet scheduled.
@@ -23,8 +24,14 @@ func PodSchedulingFailed(pod *corev1.Pod) bool {
 	return false
 }
 
+func GetPodNames(pods []corev1.Pod) []string {
+	return lo.Map[corev1.Pod, string](pods, func(pod corev1.Pod, _ int) string {
+		return pod.Name
+	})
+}
+
 // ListPods will get all pods and apply the given filters to the pods in conjunction. If no filters are given, all pods are returned.
-func ListPods(ctx context.Context, cl client.Client, filters ...api.PodFilter) ([]corev1.Pod, error) {
+func ListPods(ctx context.Context, cl client.Client, filters ...common.PodFilter) ([]corev1.Pod, error) {
 	pods := &corev1.PodList{}
 	err := cl.List(ctx, pods)
 	if err != nil {
@@ -42,7 +49,7 @@ func ListPods(ctx context.Context, cl client.Client, filters ...api.PodFilter) (
 	return filteredPods, nil
 }
 
-func evaluatePodFilters(pod *corev1.Pod, filters []api.PodFilter) bool {
+func evaluatePodFilters(pod *corev1.Pod, filters []common.PodFilter) bool {
 	for _, f := range filters {
 		if ok := f(pod); !ok {
 			return false

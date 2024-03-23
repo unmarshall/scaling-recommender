@@ -2,7 +2,6 @@ package garden
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
@@ -45,9 +44,9 @@ func (a *access) GetShootAccess(ctx context.Context, shootCoord ShootCoordinates
 }
 
 func (a *access) GetShoot(ctx context.Context, shootCoord ShootCoordinates) (*gardencorev1beta1.Shoot, error) {
-	shootNs := fmt.Sprintf("garden-%s", shootCoord.Project)
+	shootNs := shootCoord.GetNamespace()
 	shoot := &gardencorev1beta1.Shoot{}
-	if err := a.vGardenClient.Get(ctx, client.ObjectKey{Name: shootCoord.Shoot, Namespace: shootNs}, shoot); err != nil {
+	if err := a.vGardenClient.Get(ctx, client.ObjectKey{Name: shootCoord.Name, Namespace: shootNs}, shoot); err != nil {
 		return nil, err
 	}
 	return shoot, nil
@@ -73,7 +72,7 @@ func (a *access) createShootAccess(ctx context.Context, shootCoord ShootCoordina
 
 func (a *access) findShootAccess(shootCoord ShootCoordinates) (ShootAccess, bool) {
 	for coord, sa := range a.shootAccesses {
-		if coord.Shoot == shootCoord.Shoot && coord.Project == shootCoord.Project {
+		if coord.Name == shootCoord.Name && coord.Project == shootCoord.Project {
 			// check if the kubeconfig is still valid
 			if !sa.HasExpired() {
 				return sa, true
