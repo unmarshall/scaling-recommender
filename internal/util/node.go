@@ -22,6 +22,10 @@ func GetNodeNames(nodes []corev1.Node) []string {
 	})
 }
 
+func GetNodeInstanceType(node corev1.Node) string {
+	return node.Labels["node.kubernetes.io/instance-type"]
+}
+
 func ListNodes(ctx context.Context, cl client.Client, filters ...common.NodeFilter) ([]corev1.Node, error) {
 	nodes := &corev1.NodeList{}
 	err := cl.List(ctx, nodes)

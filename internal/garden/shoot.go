@@ -2,7 +2,6 @@ package garden
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,19 +10,6 @@ import (
 	"unmarshall/scaling-recommender/internal/common"
 	util2 "unmarshall/scaling-recommender/internal/util"
 )
-
-// ShootCoordinates represents the coordinates of a shoot cluster. It can be used to represent both the shoot and seed.
-type ShootCoordinates struct {
-	Project string
-	Name    string
-}
-
-func (sc ShootCoordinates) GetNamespace() string {
-	if sc.Project == "garden" {
-		return "garden"
-	}
-	return fmt.Sprintf("garden-%s", sc.Project)
-}
 
 type ShootAccess interface {
 	// HasExpired returns true if the admin kube config using which the client is created has expired thus expiring the shoot access
@@ -38,12 +24,12 @@ type ShootAccess interface {
 
 type shootAccess struct {
 	garden     string
-	shootCoord ShootCoordinates
+	shootCoord common.ShootCoordinates
 	client     client.Client
 	createdAt  time.Time
 }
 
-func NewShootAccess(garden string, shootCoord ShootCoordinates, kubeConfig []byte) (ShootAccess, error) {
+func NewShootAccess(garden string, shootCoord common.ShootCoordinates, kubeConfig []byte) (ShootAccess, error) {
 	cl, err := createShootClient(kubeConfig)
 	if err != nil {
 		return nil, err

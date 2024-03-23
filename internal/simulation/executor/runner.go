@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/simulation/scenarios/scaledown/simple"
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
@@ -17,14 +18,16 @@ type Engine interface {
 
 type engine struct {
 	server              http.Server
+	gardenAccess        garden.Access
 	virtualControlPlane virtualenv.ControlPlane
 }
 
-func NewExecutor(vControlPlane virtualenv.ControlPlane) Engine {
+func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane) Engine {
 	return &engine{
 		server: http.Server{
 			Addr: ":8080",
 		},
+		gardenAccess:        gardenAccess,
 		virtualControlPlane: vControlPlane,
 	}
 }
