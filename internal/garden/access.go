@@ -46,6 +46,7 @@ func (a *access) GetShootAccess(ctx context.Context, shootCoord common.ShootCoor
 	if sa, found := a.findShootAccess(shootCoord); found {
 		return sa, nil
 	}
+	slog.Info("creating shoot access", "shoot", shootCoord)
 	return a.createShootAccess(ctx, shootCoord)
 }
 
@@ -105,7 +106,7 @@ func (a *access) findShootAccess(shootCoord common.ShootCoordinates) (ShootAcces
 			if !sa.HasExpired() {
 				return sa, true
 			} else {
-				slog.Warn("Admin kubeconfig for shoot has expired. Recreating shoot access", "shoot", shootCoord)
+				slog.Warn("Admin kubeconfig for shoot has expired. ShootAccess should be recreated", "shoot", shootCoord)
 			}
 		}
 	}

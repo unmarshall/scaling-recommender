@@ -18,6 +18,8 @@ type PodControl interface {
 	ListPods(ctx context.Context, filters ...common.PodFilter) ([]corev1.Pod, error)
 	// CreatePodsAsUnscheduled creates new unscheduled pods in the in-memory controlPlane from the given schedulerName and pod specs.
 	CreatePodsAsUnscheduled(ctx context.Context, schedulerName string, pods ...corev1.Pod) error
+	// CreatePods creates new pods in the in-memory controlPlane.
+	CreatePods(ctx context.Context, pods ...corev1.Pod) error
 	// DeletePods deletes the given pods from the in-memory controlPlane.
 	DeletePods(ctx context.Context, pods ...corev1.Pod) error
 	// DeleteAllPods deletes all pods from the in-memory controlPlane.
@@ -63,6 +65,14 @@ func (p podControl) CreatePodsAsUnscheduled(ctx context.Context, schedulerName s
 			slog.Error("failed to create pod in virtual controlPlane", "pod", client.ObjectKeyFromObject(dupPod), "error", err)
 			errors.Join(errs, err)
 		}
+	}
+	return errs
+}
+
+func (p podControl) CreatePods(ctx context.Context, pods ...corev1.Pod) error {
+	var errs error
+	for _, pod := range pods {
+		errors.Join(errs, p.client.Create(ctx, &pod))
 	}
 	return errs
 }

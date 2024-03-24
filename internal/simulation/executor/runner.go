@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"unmarshall/scaling-recommender/internal/garden"
+	"unmarshall/scaling-recommender/internal/pricing"
+	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/simulation/scenarios/scaledown/simple"
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
@@ -14,21 +16,26 @@ import (
 type Engine interface {
 	Run()
 	Shutdown()
+	GardenAccess() garden.Access
+	VirtualControlPlane() virtualenv.ControlPlane
+	RecommenderFactory() scaler.Factory
 }
 
 type engine struct {
 	server              http.Server
 	gardenAccess        garden.Access
 	virtualControlPlane virtualenv.ControlPlane
+	pricingAccess       pricing.InstancePricingAccess
 }
 
-func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane) Engine {
+func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) Engine {
 	return &engine{
 		server: http.Server{
 			Addr: ":8080",
 		},
 		gardenAccess:        gardenAccess,
 		virtualControlPlane: vControlPlane,
+		pricingAccess:       pricingAccess,
 	}
 }
 
@@ -44,6 +51,18 @@ func (e *engine) Shutdown() {
 	if err := e.server.Shutdown(context.Background()); err != nil {
 		slog.Error("error shutting down scenario http server", "error", err)
 	}
+}
+
+func (e *engine) GardenAccess() garden.Access {
+	return e.gardenAccess
+}
+
+func (e *engine) VirtualControlPlane() virtualenv.ControlPlane {
+	return e.virtualControlPlane
+}
+
+func (e *engine) RecommenderFactory() scaler.Factory {
+	return scaler.NewFactory(e.virtualControlPlane, e.GardenAccess(), e.pricingAccess)
 }
 
 func (e *engine) routes() *http.ServeMux {

@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/garden"
+	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/simulation/executor"
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
@@ -33,7 +34,12 @@ func main() {
 
 	gardenAccess := initializeGardenAccess(ctx, appConfig)
 	vCluster := startVirtualCluster(ctx, appConfig)
-	scenarioExecutorEngine := startScenarioExecutorEngine(gardenAccess, vCluster)
+	pricingAccess, err := pricing.NewInstancePricingAccess()
+	if err != nil {
+		slog.Error("failed to create instance pricing access", "error", err)
+		os.Exit(1)
+	}
+	scenarioExecutorEngine := startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess)
 
 	<-ctx.Done()
 	slog.Info("shutting down virtual cluster...")
@@ -67,8 +73,8 @@ func initializeGardenAccess(ctx context.Context, appConfig common.AppConfig) gar
 	return gardenAccess
 }
 
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane) executor.Engine {
-	scenarioExecutorEngine := executor.NewExecutor(gardenAccess, vCluster)
+func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) executor.Engine {
+	scenarioExecutorEngine := executor.NewExecutor(gardenAccess, vCluster, pricingAccess)
 	slog.Info("Triggering start of scenario executor...")
 	go scenarioExecutorEngine.Run()
 	return scenarioExecutorEngine
