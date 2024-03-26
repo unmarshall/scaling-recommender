@@ -35,8 +35,20 @@ type LogWriterFlusher interface {
 }
 
 type Result struct {
-	Val Recommendation
+	Ok  Recommendation
 	Err error
+}
+
+func (r Result) IsError() bool {
+	return r.Err != nil
+}
+
+func ErrorResult(err error) Result {
+	return Result{Err: err}
+}
+
+func OkResult(recommendation Recommendation) Result {
+	return Result{Ok: recommendation}
 }
 
 type Recommendation struct {
@@ -44,12 +56,16 @@ type Recommendation struct {
 	ScaleDown []string
 }
 
+func NewScaleDownRecommendation(scaleDown []string) Recommendation {
+	return Recommendation{ScaleDown: scaleDown}
+}
+
 type Factory interface {
 	GetRecommender(variant AlgoVariant) (Recommender, bool)
 }
 
 type Recommender interface {
-	Run(ctx context.Context, w LogWriterFlusher) error
+	Run(ctx context.Context, w LogWriterFlusher) Result
 }
 
 type factory struct {
@@ -59,7 +75,7 @@ type factory struct {
 func NewFactory(vcp virtualenv.ControlPlane, ga garden.Access, pricingAccess pricing.InstancePricingAccess) Factory {
 	algos := make(map[AlgoVariant]Recommender)
 	// Register all scaling algorithms
-	algos[DescendingCostScaleDownAlgo] = scaledown.NewDescendingCostRecommender(vcp.NodeControl(), vcp.PodControl(), pricingAccess)
+	algos[DescendingCostScaleDownAlgo] = scaledown.NewDescendingCostRecommender(vcp.NodeControl(), vcp.PodControl(), vcp.EventControl(), pricingAccess)
 	return &factory{
 		algos: algos,
 	}

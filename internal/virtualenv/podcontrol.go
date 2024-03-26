@@ -72,7 +72,11 @@ func (p podControl) CreatePodsAsUnscheduled(ctx context.Context, schedulerName s
 func (p podControl) CreatePods(ctx context.Context, pods ...corev1.Pod) error {
 	var errs error
 	for _, pod := range pods {
-		errors.Join(errs, p.client.Create(ctx, &pod))
+		clone := pod.DeepCopy()
+		clone.ObjectMeta.UID = ""
+		clone.ObjectMeta.ResourceVersion = ""
+		clone.ObjectMeta.CreationTimestamp = metav1.Time{}
+		errors.Join(errs, p.client.Create(ctx, clone))
 	}
 	return errs
 }

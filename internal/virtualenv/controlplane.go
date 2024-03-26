@@ -30,6 +30,8 @@ type ControlPlane interface {
 	NodeControl() NodeControl
 	// PodControl returns the PodControl for the in-memory controlPlane. Should only be called after Start.
 	PodControl() PodControl
+	// EventControl returns the EventControl for the in-memory controlPlane. Should only be called after Start.
+	EventControl() EventControl
 }
 
 // NewControlPlane creates a new control plane. None of the components of the
@@ -50,9 +52,10 @@ type controlPlane struct {
 	// testEnvironment starts kube-api-server and etcd processes in-memory.
 	testEnvironment *envtest.Environment
 	// scheduler is the Kubernetes scheduler run in-memory.
-	scheduler   *scheduler.Scheduler
-	nodeControl NodeControl
-	podControl  PodControl
+	scheduler    *scheduler.Scheduler
+	nodeControl  NodeControl
+	podControl   PodControl
+	eventControl EventControl
 }
 
 func (c *controlPlane) Start(ctx context.Context) error {
@@ -75,6 +78,7 @@ func (c *controlPlane) Start(ctx context.Context) error {
 	c.client = k8sClient
 	c.nodeControl = NewNodeControl(k8sClient)
 	c.podControl = NewPodControl(k8sClient)
+	c.eventControl = NewEventControl(k8sClient)
 	slog.Info("Starting in-memory kube-scheduler...")
 	return c.startScheduler(ctx, c.restConfig)
 }
@@ -116,6 +120,14 @@ func (c *controlPlane) PodControl() PodControl {
 		panic("controlPlane not started")
 	}
 	return NewPodControl(c.client)
+}
+
+func (c *controlPlane) EventControl() EventControl {
+	if c.client == nil {
+		slog.Error("controlPlane not started, first start the control plane and then call NodeControl")
+		panic("controlPlane not started")
+	}
+	return NewEventControl(c.client)
 }
 
 func (c *controlPlane) startKAPIAndEtcd() (vEnv *envtest.Environment, cfg *rest.Config, k8sClient client.Client, err error) {

@@ -49,7 +49,7 @@ func ListPods(ctx context.Context, cl client.Client, filters ...common.PodFilter
 	return filteredPods, nil
 }
 
-func CreateNewUnassignedPods(pods []corev1.Pod, schedulerName string) ([]corev1.Pod, error) {
+func ConstructNewPods(pods []corev1.Pod, nodeName, schedulerName string) ([]corev1.Pod, error) {
 	var newPods []corev1.Pod
 	for _, pod := range pods {
 		suffix, err := GenerateRandomString(4)
@@ -57,7 +57,7 @@ func CreateNewUnassignedPods(pods []corev1.Pod, schedulerName string) ([]corev1.
 			return nil, err
 		}
 		newPod := pod.DeepCopy()
-		newPod.Spec.NodeName = ""
+		newPod.Spec.NodeName = nodeName
 		newPod.Spec.SchedulerName = schedulerName
 		if lo.IsEmpty(pod.GenerateName) {
 			newPod.Name = pod.Name + "-" + suffix

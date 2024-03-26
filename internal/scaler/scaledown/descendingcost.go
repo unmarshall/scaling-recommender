@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/internal/common"
@@ -14,21 +15,32 @@ import (
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
+const (
+	podScheduledEventsTimeout = 10 * time.Second
+)
+
 type recommender struct {
 	nc virtualenv.NodeControl
 	pc virtualenv.PodControl
+	ec virtualenv.EventControl
 	pa pricing.InstancePricingAccess
 }
 
-func NewDescendingCostRecommender(nc virtualenv.NodeControl, pc virtualenv.PodControl, pricingAccess pricing.InstancePricingAccess) scaler.Recommender {
+func NewDescendingCostRecommender(nc virtualenv.NodeControl, pc virtualenv.PodControl, ec virtualenv.EventControl, pricingAccess pricing.InstancePricingAccess) scaler.Recommender {
 	return &recommender{
 		nc: nc,
 		pc: pc,
+		ec: ec,
 		pa: pricingAccess,
 	}
 }
 
-func (r *recommender) Run(ctx context.Context, w scaler.LogWriterFlusher) error {
+func (r *recommender) Run(ctx context.Context, w scaler.LogWriterFlusher) scaler.Result {
+	startTime := time.Now()
+	defer func() {
+		runDuration := time.Since(startTime)
+		web.Logf(w, "Descending cost scale down recommender took %f seconds", runDuration.Seconds())
+	}()
 	nodes, err := r.getAndSortNodesByDescendingCost()
 	if err != nil {
 		web.InternalError(w, err)
@@ -39,34 +51,65 @@ func (r *recommender) Run(ctx context.Context, w scaler.LogWriterFlusher) error 
 		assignedPods, err := r.getPodsAssignedToNode(ctx, node.Name)
 		if err != nil {
 			web.InternalError(w, err)
-			return err
+			return scaler.ErrorResult(err)
 		}
 		if err = r.deleteNodeAndAssignedPods(ctx, w, &node, assignedPods); err != nil {
 			web.InternalError(w, err)
-			return err
+			return scaler.ErrorResult(err)
 		}
 		if len(assignedPods) == 0 {
 			deletableNodeNames = append(deletableNodeNames, node.Name)
 			web.Logf(w, "Node %s has no assigned pods and can be deleted", node.Name)
 		}
-		if err = r.createAndDeployNewUnassignedPods(ctx, w, assignedPods); err != nil {
+		deployStartTime := time.Now()
+		adjustedPods, err := r.createAndDeployNewUnassignedPods(ctx, w, assignedPods)
+		if err != nil {
 			web.InternalError(w, err)
-			return err
+			return scaler.ErrorResult(err)
 		}
-
+		scheduledPodNames, unscheduledPodNames, err := util.WaitForAndRecordPodSchedulingEvents(ctx, r.ec, deployStartTime, adjustedPods, podScheduledEventsTimeout)
+		if err != nil {
+			return scaler.ErrorResult(err)
+		}
+		web.Logf(w, "Scheduled pods: %v, unscheduled pods: %v", scheduledPodNames, unscheduledPodNames)
+		if len(unscheduledPodNames) != 0 {
+			web.Logf(w, "Node %s CANNOT be removed since it will result in %d unscheduled pods", node.Name, len(unscheduledPodNames))
+			if err = r.pc.DeletePods(ctx, adjustedPods...); err != nil {
+				web.InternalError(w, err)
+				return scaler.ErrorResult(err)
+			}
+			web.Logf(w, "Recreating node %s and corresponding pods %s", node.Name, util.GetPodNames(assignedPods))
+			if err = r.recreateNodeWithPods(ctx, &node, assignedPods); err != nil {
+				web.InternalError(w, err)
+				return scaler.ErrorResult(err)
+			}
+		} else {
+			web.Logf(w, "Node %s can be removed, adding it to deletion candidates", node.Name)
+			deletableNodeNames = append(deletableNodeNames, node.Name)
+		}
 	}
-
-	return nil
+	return scaler.OkResult(scaler.NewScaleDownRecommendation(deletableNodeNames))
 }
 
-func (r *recommender) createAndDeployNewUnassignedPods(ctx context.Context, w scaler.LogWriterFlusher, assignedPods []corev1.Pod) error {
-	clonedUnassignedPods, err := util.CreateNewUnassignedPods(assignedPods, common.BinPackingSchedulerName)
-	if err != nil {
-		web.InternalError(w, err)
+func (r *recommender) recreateNodeWithPods(ctx context.Context, node *corev1.Node, pods []corev1.Pod) error {
+	if err := r.nc.CreateNodes(ctx, *node); err != nil {
 		return err
 	}
+	newPods, err := util.ConstructNewPods(pods, node.Name, common.BinPackingSchedulerName)
+	if err != nil {
+		return err
+	}
+	return r.pc.CreatePods(ctx, newPods...)
+}
+
+func (r *recommender) createAndDeployNewUnassignedPods(ctx context.Context, w scaler.LogWriterFlusher, assignedPods []corev1.Pod) ([]corev1.Pod, error) {
+	clonedUnassignedPods, err := util.ConstructNewPods(assignedPods, "", common.BinPackingSchedulerName)
+	if err != nil {
+		web.InternalError(w, err)
+		return clonedUnassignedPods, err
+	}
 	web.Logf(w, "Deploying new unassigned pods %v", util.GetPodNames(clonedUnassignedPods))
-	return r.pc.CreatePods(ctx, clonedUnassignedPods...)
+	return clonedUnassignedPods, r.pc.CreatePods(ctx, clonedUnassignedPods...)
 }
 
 func (r *recommender) deleteNodeAndAssignedPods(ctx context.Context, w scaler.LogWriterFlusher, node *corev1.Node, pods []corev1.Pod) error {
