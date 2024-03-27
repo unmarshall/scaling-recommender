@@ -31,5 +31,14 @@ func (sc ShootCoordinates) GetNamespace() string {
 type AppConfig struct {
 	Garden           string
 	ReferenceShoot   ShootCoordinates
+	TargetShoot      *ShootCoordinates
 	BinaryAssetsPath string
+}
+
+type NodePool struct {
+	Name         string
+	Zones        []string
+	Max          int32
+	Current      int32
+	InstanceType string
 }

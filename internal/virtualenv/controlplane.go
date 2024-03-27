@@ -25,7 +25,7 @@ type ControlPlane interface {
 	// Stop will stop the in-memory controlPlane.
 	Stop() error
 	// FactoryReset will reset the in-memory controlPlane to its initial state.
-	FactoryReset() error
+	FactoryReset(ctx context.Context) error
 	// NodeControl returns the NodeControl for the in-memory controlPlane. Should only be called after Start.
 	NodeControl() NodeControl
 	// PodControl returns the PodControl for the in-memory controlPlane. Should only be called after Start.
@@ -93,14 +93,17 @@ func (c *controlPlane) Stop() error {
 	return nil
 }
 
-func (c *controlPlane) FactoryReset() error {
+func (c *controlPlane) FactoryReset(ctx context.Context) error {
 	slog.Info("Removing all nodes...")
-	if err := c.NodeControl().DeleteAllNodes(context.Background()); err != nil {
+	if err := c.NodeControl().DeleteAllNodes(ctx); err != nil {
 		return fmt.Errorf("failed to delete all nodes: %w", err)
 	}
 	slog.Info("Removing all pods...")
-	if err := c.PodControl().DeleteAllPods(context.Background()); err != nil {
+	if err := c.PodControl().DeleteAllPods(ctx); err != nil {
 		return fmt.Errorf("failed to delete all pods: %w", err)
+	}
+	if err := c.EventControl().DeleteAllEvents(ctx); err != nil {
+		return fmt.Errorf("failed to delete all events: %w", err)
 	}
 	slog.Info("In-memory controlPlane factory reset successfully")
 	return nil

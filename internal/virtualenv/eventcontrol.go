@@ -10,6 +10,7 @@ import (
 
 type EventControl interface {
 	ListEvents(ctx context.Context, filters ...common.EventFilter) ([]corev1.Event, error)
+	DeleteAllEvents(ctx context.Context) error
 }
 
 func NewEventControl(cl client.Client) EventControl {
@@ -22,7 +23,7 @@ type eventControl struct {
 	client client.Client
 }
 
-func (e eventControl) ListEvents(ctx context.Context, filters ...common.EventFilter) ([]corev1.Event, error) {
+func (e *eventControl) ListEvents(ctx context.Context, filters ...common.EventFilter) ([]corev1.Event, error) {
 	eventList := &corev1.EventList{}
 	if err := e.client.List(ctx, eventList); err != nil {
 		return nil, err
@@ -37,6 +38,10 @@ func (e eventControl) ListEvents(ctx context.Context, filters ...common.EventFil
 		}
 	}
 	return filteredEvents, nil
+}
+
+func (e *eventControl) DeleteAllEvents(ctx context.Context) error {
+	return e.client.DeleteAllOf(ctx, &corev1.Event{})
 }
 
 func evaluateFilters(event *corev1.Event, filters []common.EventFilter) bool {

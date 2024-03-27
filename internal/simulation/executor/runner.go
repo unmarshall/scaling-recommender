@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
@@ -26,9 +27,10 @@ type engine struct {
 	gardenAccess        garden.Access
 	virtualControlPlane virtualenv.ControlPlane
 	pricingAccess       pricing.InstancePricingAccess
+	targetShootCoord    *common.ShootCoordinates
 }
 
-func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) Engine {
+func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinates) Engine {
 	return &engine{
 		server: http.Server{
 			Addr: ":8080",
@@ -36,6 +38,7 @@ func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPla
 		gardenAccess:        gardenAccess,
 		virtualControlPlane: vControlPlane,
 		pricingAccess:       pricingAccess,
+		targetShootCoord:    targetShootCoord,
 	}
 }
 
@@ -68,6 +71,6 @@ func (e *engine) RecommenderFactory() scaler.Factory {
 func (e *engine) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	simpleScaleDownScenario := simple.New(e)
-	mux.HandleFunc("/simulation/scenarios/scaledown/"+simpleScaleDownScenario.Name(), simpleScaleDownScenario.HandlerFn())
+	mux.HandleFunc("POST /simulation/scenarios/scaledown/"+simpleScaleDownScenario.Name(), simpleScaleDownScenario.HandlerFn())
 	return mux
 }

@@ -39,7 +39,7 @@ func main() {
 		slog.Error("failed to create instance pricing access", "error", err)
 		os.Exit(1)
 	}
-	scenarioExecutorEngine := startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess)
+	scenarioExecutorEngine := startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, appConfig.TargetShoot)
 
 	<-ctx.Done()
 	slog.Info("shutting down virtual cluster...")
@@ -73,8 +73,8 @@ func initializeGardenAccess(ctx context.Context, appConfig common.AppConfig) gar
 	return gardenAccess
 }
 
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) executor.Engine {
-	scenarioExecutorEngine := executor.NewExecutor(gardenAccess, vCluster, pricingAccess)
+func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinates) executor.Engine {
+	scenarioExecutorEngine := executor.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord)
 	slog.Info("Triggering start of scenario executor...")
 	go scenarioExecutorEngine.Run()
 	return scenarioExecutorEngine
@@ -103,6 +103,8 @@ func parseCmdArgs() (common.AppConfig, error) {
 	fs.StringVar(&config.BinaryAssetsPath, "binary-assets-path", "", "path to the binary assets (kube-apiserver, etcd)")
 	fs.StringVar(&config.ReferenceShoot.Project, "reference-shoot-project", "", "project of the reference shoot")
 	fs.StringVar(&config.ReferenceShoot.Name, "reference-shoot-name", "", "name of the reference shoot")
+	fs.StringVar(&config.TargetShoot.Project, "target-shoot-project", "", "project of the target shoot")
+	fs.StringVar(&config.TargetShoot.Name, "target-shoot-name", "", "name of the target shoot")
 	if err := fs.Parse(args); err != nil {
 		return config, err
 	}
