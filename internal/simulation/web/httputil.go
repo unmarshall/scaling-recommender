@@ -1,38 +1,62 @@
 package web
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
-	"time"
 
-	"unmarshall/scaling-recommender/internal/scaler"
+	"unmarshall/scaling-recommender/api"
 )
 
-func Log(w scaler.LogWriterFlusher, msg string) {
-	_, _ = fmt.Fprintf(w, "[ %s ] : %s\n", time.Now().Format("2006-01-02 15:04:05"), msg)
-	w.(http.Flusher).Flush()
-}
-
-func Logf(w scaler.LogWriterFlusher, format string, a ...any) {
-	msg := fmt.Sprintf(format, a)
-	Log(w, msg)
-}
-
-func InternalError(w scaler.LogWriterFlusher, err error) {
-	http.Error(w.(http.ResponseWriter), err.Error(), http.StatusInternalServerError)
-}
-
-func GetIntQueryParam(r *http.Request, name string, defVal int) int {
-	valStr := r.URL.Query().Get(name)
-	if valStr == "" {
-		return defVal
-	}
-	val, err := strconv.Atoi(valStr)
+func ParseSimulationRequest(reqBody io.ReadCloser) (*api.SimulationRequest, error) {
+	simRequest := &api.SimulationRequest{}
+	err := json.NewDecoder(reqBody).Decode(simRequest)
 	if err != nil {
-		slog.Error("cannot convert to int, using default", "name", name, "value", valStr, "default", defVal)
-		return defVal
+		var syntaxError *json.SyntaxError
+		var unmarshalTypeError *json.UnmarshalTypeError
+
+		switch {
+		case errors.As(err, &syntaxError):
+			return nil, fmt.Errorf("body contains badly-formed JSON (at character %d)", syntaxError.Offset)
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			return nil, fmt.Errorf("body contains badly formed JSON")
+		case errors.As(err, &unmarshalTypeError):
+			if unmarshalTypeError.Field != "" {
+				return nil, fmt.Errorf("body contains incorrect JSON type for field %q", unmarshalTypeError.Field)
+			}
+			return nil, fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset)
+		case errors.Is(err, io.EOF):
+			return nil, errors.New("body must not be empty")
+		default:
+			return nil, err
+		}
 	}
-	return val
+	return simRequest, nil
+}
+
+type ResponseEnvelope map[string]interface{}
+
+func WriteJSON(w http.ResponseWriter, statusCode int, data ResponseEnvelope) error {
+	jsonBytes, err := json.MarshalIndent(data, "", "\t")
+	if err != nil {
+		return err
+	}
+	jsonBytes = append(jsonBytes, '\n')
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if _, err = w.Write(jsonBytes); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ErrorResponse(w http.ResponseWriter, statusCode int, message string) {
+	responseEnvelope := ResponseEnvelope{"error": message}
+	if err := WriteJSON(w, statusCode, responseEnvelope); err != nil {
+		slog.Error("error writing response", "error", err)
+		http.Error(w, "error writing response", http.StatusInternalServerError)
+	}
 }

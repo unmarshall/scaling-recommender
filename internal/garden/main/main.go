@@ -22,13 +22,14 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	garden2 "unmarshall/scaling-recommender/internal/garden"
+	"unmarshall/scaling-recommender/internal/common"
+	"unmarshall/scaling-recommender/internal/garden"
 )
 
 func main() {
 	utilruntime.Must(gardencorev1beta1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(seedmanagementv1alpha1.AddToScheme(scheme.Scheme))
-	ga, err := garden2.NewAccess("sap-landscape-live")
+	ga, err := garden.NewAccess("sap-landscape-live")
 	dieOnError(err, "failed to create garden access")
 	ctx := context.Background()
 	for _, t := range getTargets() {
@@ -145,30 +146,30 @@ func getNewGRMConfigMap(ctx context.Context, cl client.Client, ns string) (*core
 }
 
 type target struct {
-	seedCoord              garden2.ShootCoordinates
+	seedCoord              common.ShootCoordinate
 	shootControlNamespaces []string
 }
 
 func getTargets() []target {
 	return []target{
 		{
-			seedCoord:              garden2.ShootCoordinates{Project: "garden", Name: "gcp-us1"},
+			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "gcp-us1"},
 			shootControlNamespaces: []string{"shoot--als-canary--cf-us31"},
 		},
 		{
-			seedCoord:              garden2.ShootCoordinates{Project: "garden", Name: "aws-ha-ap3"},
+			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "aws-ha-ap3"},
 			shootControlNamespaces: []string{"shoot--als-global--aws-ap12"},
 		},
 		{
-			seedCoord:              garden2.ShootCoordinates{Project: "garden", Name: "aws-ha-ap1"},
+			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "aws-ha-ap1"},
 			shootControlNamespaces: []string{"shoot--als-global--aws-ap11"},
 		},
 		{
-			seedCoord:              garden2.ShootCoordinates{Project: "garden", Name: "aws-ap3"},
+			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "aws-ap3"},
 			shootControlNamespaces: []string{"shoot--als-global--aws-jp10", "shoot--edgelm--prod-jp10"},
 		},
 		{
-			seedCoord:              garden2.ShootCoordinates{Project: "garden", Name: "gcp-us1"},
+			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "gcp-us1"},
 			shootControlNamespaces: []string{"shoot--als-global--gcp-us30"},
 		},
 	}

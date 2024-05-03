@@ -17,9 +17,11 @@ const (
 )
 
 type PodBuilder struct {
-	objectMeta      metav1.ObjectMeta
-	schedulerName   string
-	resourceRequest corev1.ResourceList
+	objectMeta                metav1.ObjectMeta
+	schedulerName             string
+	resourceRequest           corev1.ResourceList
+	topologySpreadConstraints []corev1.TopologySpreadConstraint
+	tolerations               []corev1.Toleration
 }
 
 func NewPodBuilder() *PodBuilder {
@@ -69,6 +71,16 @@ func (p *PodBuilder) RequestCPU(quantity string) *PodBuilder {
 	return p
 }
 
+func (p *PodBuilder) AddTopologySpreadConstraints(constraint corev1.TopologySpreadConstraint) *PodBuilder {
+	p.topologySpreadConstraints = append(p.topologySpreadConstraints, constraint)
+	return p
+}
+
+func (p *PodBuilder) AddTolerations(toleration corev1.Toleration) *PodBuilder {
+	p.tolerations = append(p.tolerations, toleration)
+	return p
+}
+
 func (p *PodBuilder) Build() (*corev1.Pod, error) {
 	if p.resourceRequest == nil || len(p.resourceRequest) == 0 {
 		return nil, fmt.Errorf("resource request must be set")
@@ -86,6 +98,8 @@ func (p *PodBuilder) Build() (*corev1.Pod, error) {
 					},
 				},
 			},
+			TopologySpreadConstraints: p.topologySpreadConstraints,
+			Tolerations:               p.tolerations,
 		},
 	}, nil
 }

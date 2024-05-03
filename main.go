@@ -16,7 +16,7 @@ import (
 	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/pricing"
-	"unmarshall/scaling-recommender/internal/simulation/executor"
+	"unmarshall/scaling-recommender/internal/simulation"
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
@@ -73,8 +73,8 @@ func initializeGardenAccess(ctx context.Context, appConfig common.AppConfig) gar
 	return gardenAccess
 }
 
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinates) executor.Engine {
-	scenarioExecutorEngine := executor.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord)
+func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinate) simulation.Engine {
+	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord)
 	slog.Info("Triggering start of scenario executor...")
 	go scenarioExecutorEngine.Run()
 	return scenarioExecutorEngine
@@ -95,7 +95,7 @@ func setupSignalHandler() context.Context {
 
 func parseCmdArgs() (common.AppConfig, error) {
 	config := common.AppConfig{
-		ReferenceShoot: common.ShootCoordinates{},
+		ReferenceShoot: common.ShootCoordinate{},
 	}
 	args := os.Args[1:]
 	fs := flag.CommandLine

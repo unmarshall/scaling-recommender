@@ -199,3 +199,17 @@ func startInformersAndWaitForSync(ctx context.Context, sac *schedulerappconfig.C
 		slog.Error("waiting for kube-scheduler handlers to sync", "error", err)
 	}
 }
+
+/*
+	Request {
+	nodePoolSpec: [] NodePool {
+	  "zones": "zone-a",
+	  "instanceType": "n1-standard-2",
+	  "maxCount": 3
+		}
+  	}
+	PodSpec: {
+	 "memory": 1,
+	 "count": 1,
+	}
+*/

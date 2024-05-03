@@ -15,13 +15,13 @@ type NodeFilter func(node *corev1.Node) bool
 // EventFilter is a predicate that takes in an Event and returns the predicate result as a boolean.
 type EventFilter func(event *corev1.Event) bool
 
-// ShootCoordinates represents the coordinates of a shoot cluster. It can be used to represent both the shoot and seed.
-type ShootCoordinates struct {
+// ShootCoordinate represents the coordinates of a shoot cluster. It can be used to represent both the shoot and seed.
+type ShootCoordinate struct {
 	Project string
 	Name    string
 }
 
-func (sc ShootCoordinates) GetNamespace() string {
+func (sc ShootCoordinate) GetNamespace() string {
 	if sc.Project == "garden" {
 		return "garden"
 	}
@@ -30,15 +30,7 @@ func (sc ShootCoordinates) GetNamespace() string {
 
 type AppConfig struct {
 	Garden           string
-	ReferenceShoot   ShootCoordinates
-	TargetShoot      *ShootCoordinates
+	ReferenceShoot   ShootCoordinate
+	TargetShoot      *ShootCoordinate
 	BinaryAssetsPath string
-}
-
-type NodePool struct {
-	Name         string
-	Zones        []string
-	Max          int32
-	Current      int32
-	InstanceType string
 }

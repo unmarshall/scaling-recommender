@@ -1,4 +1,4 @@
-package executor
+package simulation
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
-	"unmarshall/scaling-recommender/internal/simulation/scenarios/scaledown/simple"
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
@@ -20,6 +19,7 @@ type Engine interface {
 	GardenAccess() garden.Access
 	VirtualControlPlane() virtualenv.ControlPlane
 	RecommenderFactory() scaler.Factory
+	TargetShootCoordinate() common.ShootCoordinate
 }
 
 type engine struct {
@@ -27,10 +27,10 @@ type engine struct {
 	gardenAccess        garden.Access
 	virtualControlPlane virtualenv.ControlPlane
 	pricingAccess       pricing.InstancePricingAccess
-	targetShootCoord    *common.ShootCoordinates
+	targetShootCoord    *common.ShootCoordinate
 }
 
-func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinates) Engine {
+func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinate) Engine {
 	return &engine{
 		server: http.Server{
 			Addr: ":8080",
@@ -68,9 +68,13 @@ func (e *engine) RecommenderFactory() scaler.Factory {
 	return scaler.NewFactory(e.virtualControlPlane, e.GardenAccess(), e.pricingAccess)
 }
 
+func (e *engine) TargetShootCoordinate() common.ShootCoordinate {
+	return *e.targetShootCoord
+}
+
 func (e *engine) routes() *http.ServeMux {
 	mux := http.NewServeMux()
-	simpleScaleDownScenario := simple.New(e)
-	mux.HandleFunc("POST /simulation/scenarios/scaledown/"+simpleScaleDownScenario.Name(), simpleScaleDownScenario.HandlerFn())
+	h := Handler{engine: e}
+	mux.HandleFunc("POST /simulation/", h.run)
 	return mux
 }

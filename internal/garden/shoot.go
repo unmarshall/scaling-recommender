@@ -24,12 +24,12 @@ type ShootAccess interface {
 
 type shootAccess struct {
 	garden     string
-	shootCoord common.ShootCoordinates
+	shootCoord common.ShootCoordinate
 	client     client.Client
 	createdAt  time.Time
 }
 
-func NewShootAccess(garden string, shootCoord common.ShootCoordinates, kubeConfig []byte) (ShootAccess, error) {
+func NewShootAccess(garden string, shootCoord common.ShootCoordinate, kubeConfig []byte) (ShootAccess, error) {
 	cl, err := createShootClient(kubeConfig)
 	if err != nil {
 		return nil, err

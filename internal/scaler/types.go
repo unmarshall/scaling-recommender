@@ -24,9 +24,9 @@ type StrategyWeights struct {
 type AlgoVariant string
 
 const (
-	VanillaScaleUpAlgo               AlgoVariant = "vanilla-scale-up"
-	MultiDimensionScoringScaleUpAlgo AlgoVariant = "multi-dimensional-scoring-scale-up"
-	DescendingCostScaleDownAlgo      AlgoVariant = "descending-cost-scale-down"
+	MultiDimensionScoringScaleUpAlgo           AlgoVariant = "multi-dimensional-scoring-scale-up"
+	ConcurrentMultiDimensionScoringScaleUpAlgo AlgoVariant = "concurrent-multi-dimensional-scoring-scale-up"
+	DescendingCostScaleDownAlgo                AlgoVariant = "descending-cost-scale-down"
 )
 
 type LogWriterFlusher interface {
