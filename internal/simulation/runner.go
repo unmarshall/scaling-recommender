@@ -18,6 +18,7 @@ type Engine interface {
 	Shutdown()
 	GardenAccess() garden.Access
 	VirtualControlPlane() virtualenv.ControlPlane
+	PricingAccess() pricing.InstancePricingAccess
 	RecommenderFactory() scaler.Factory
 	TargetShootCoordinate() common.ShootCoordinate
 }
@@ -64,8 +65,12 @@ func (e *engine) VirtualControlPlane() virtualenv.ControlPlane {
 	return e.virtualControlPlane
 }
 
+func (e *engine) PricingAccess() pricing.InstancePricingAccess {
+	return e.pricingAccess
+}
+
 func (e *engine) RecommenderFactory() scaler.Factory {
-	return scaler.NewFactory(e.virtualControlPlane, e.GardenAccess(), e.pricingAccess)
+	return scaler.NewFactory(e.virtualControlPlane, e.pricingAccess)
 }
 
 func (e *engine) TargetShootCoordinate() common.ShootCoordinate {

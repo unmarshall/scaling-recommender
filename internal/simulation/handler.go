@@ -3,7 +3,9 @@ package simulation
 import (
 	"log/slog"
 	"net/http"
+	"os"
 
+	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/simulation/web"
 )
 
@@ -29,6 +31,16 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 		web.ErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	slog.Info("received simulation request", "request", simRequest)
+	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger := baseLogger.With("id", simRequest.ID)
+	logger.Info("received simulation request", "request", simRequest)
 
+	recommender := scaler.NewFactory(h.engine.VirtualControlPlane(), h.engine.PricingAccess()).GetRecommender(scaler.MultiDimensionScoringScaleUpAlgo)
+	result := recommender.Run(r.Context(), *simRequest)
+	if result.IsError() {
+		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
+		return
+	}
+	// TODO change this to properly serialize the recommendation
+	web.WriteJSON(w, http.StatusOK, web.ResponseEnvelope{"recommendation": result.Ok})
 }

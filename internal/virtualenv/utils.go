@@ -1,7 +1,6 @@
 package virtualenv
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -97,7 +96,7 @@ func writeKubeConfig(kubeConfigBytes []byte) (string, error) {
 	return kubeConfigPath, nil
 }
 
-func createSchedulerAppConfig(ctx context.Context, restCfg *rest.Config) (*schedulerappconfig.Config, error) {
+func createSchedulerAppConfig(restCfg *rest.Config) (*schedulerappconfig.Config, error) {
 	client, eventsClient, err := createSchedulerClients(restCfg)
 	if err != nil {
 		return nil, err

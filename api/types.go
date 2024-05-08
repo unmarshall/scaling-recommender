@@ -30,6 +30,10 @@ type NodeReference struct {
 
 // SimulationRequest is a request to simulate a scenario.
 type SimulationRequest struct {
+	ID        string     `json:"id"`
 	NodePools []NodePool `json:"nodePools"`
 	Pods      []PodInfo  `json:"pods"`
+	// PodOrder is the order in which pods will be sorted and scheduled.
+	// If not provided, pods will be ordered in descending order of requested resources.
+	PodOrder *string
 }

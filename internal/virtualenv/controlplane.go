@@ -155,7 +155,7 @@ func (c *controlPlane) startKAPIAndEtcd() (vEnv *envtest.Environment, cfg *rest.
 
 func (c *controlPlane) startScheduler(ctx context.Context, restConfig *rest.Config) error {
 	slog.Info("creating in-memory kube-scheduler configuration...")
-	sac, err := createSchedulerAppConfig(ctx, restConfig)
+	sac, err := createSchedulerAppConfig(restConfig)
 	if err != nil {
 		return err
 	}

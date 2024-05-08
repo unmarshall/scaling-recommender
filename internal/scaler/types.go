@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"unmarshall/scaling-recommender/internal/garden"
+	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler/scaledown"
 	"unmarshall/scaling-recommender/internal/virtualenv"
@@ -15,11 +15,6 @@ import (
 var (
 	ErrScalingAlgoVariantNotRegistered = errors.New("requested scaling algo variant is not registered")
 )
-
-type StrategyWeights struct {
-	LeastWaste float64
-	LeastCost  float64
-}
 
 type AlgoVariant string
 
@@ -61,18 +56,18 @@ func NewScaleDownRecommendation(scaleDown []string) Recommendation {
 }
 
 type Factory interface {
-	GetRecommender(variant AlgoVariant) (Recommender, bool)
+	GetRecommender(variant AlgoVariant) Recommender
 }
 
 type Recommender interface {
-	Run(ctx context.Context, w LogWriterFlusher) Result
+	Run(ctx context.Context, simReq api.SimulationRequest) Result
 }
 
 type factory struct {
 	algos map[AlgoVariant]Recommender
 }
 
-func NewFactory(vcp virtualenv.ControlPlane, ga garden.Access, pricingAccess pricing.InstancePricingAccess) Factory {
+func NewFactory(vcp virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) Factory {
 	algos := make(map[AlgoVariant]Recommender)
 	// Register all scaling algorithms
 	algos[DescendingCostScaleDownAlgo] = scaledown.NewDescendingCostRecommender(vcp.NodeControl(), vcp.PodControl(), vcp.EventControl(), pricingAccess)
@@ -81,7 +76,6 @@ func NewFactory(vcp virtualenv.ControlPlane, ga garden.Access, pricingAccess pri
 	}
 }
 
-func (f *factory) GetRecommender(variant AlgoVariant) (Recommender, bool) {
-	recommender, found := f.algos[variant]
-	return recommender, found
+func (f *factory) GetRecommender(variant AlgoVariant) Recommender {
+	return f.algos[variant]
 }
