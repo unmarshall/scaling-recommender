@@ -6,6 +6,7 @@ require (
 	github.com/gardener/gardener v1.90.3
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/samber/lo v1.39.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver v0.29.2
@@ -14,7 +15,6 @@ require (
 	k8s.io/kubernetes v1.29.3
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	sigs.k8s.io/controller-runtime v0.17.2
-	github.com/samber/lo v1.39.0
 )
 
 require (

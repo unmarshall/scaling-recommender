@@ -21,6 +21,15 @@ type PodInfo struct {
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints"`
 }
 
+// NodeInfo contains relevant information about a node.
+type NodeInfo struct {
+	Name        string              `json:"name"`
+	Labels      map[string]string   `json:"labels"`
+	Taints      []corev1.Taint      `json:"taints,omitempty"`
+	Allocatable corev1.ResourceList `json:"allocatable"`
+	Capacity    corev1.ResourceList `json:"capacity"`
+}
+
 // NodeReference captures sufficient information to identify a node type on which a pod is scheduled.
 type NodeReference struct {
 	Name     string `json:"name"`
@@ -33,6 +42,7 @@ type SimulationRequest struct {
 	ID        string     `json:"id"`
 	NodePools []NodePool `json:"nodePools"`
 	Pods      []PodInfo  `json:"pods"`
+	Nodes     []NodeInfo `json:"nodes"`
 	// PodOrder is the order in which pods will be sorted and scheduled.
 	// If not provided, pods will be ordered in descending order of requested resources.
 	PodOrder *string

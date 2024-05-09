@@ -2,6 +2,9 @@ package util
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"slices"
+	"unmarshall/scaling-recommender/api"
 
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
@@ -77,4 +80,84 @@ func evaluatePodFilters(pod *corev1.Pod, filters []common.PodFilter) bool {
 		}
 	}
 	return true
+}
+
+func ConstructPodsFromPodInfos(podInfos []api.PodInfo, sortOrder string) []*corev1.Pod {
+	pods := make([]*corev1.Pod, 0, len(podInfos))
+	for _, podInfo := range podInfos {
+		pod := NewPodBuilder().
+			Name(podInfo.Name).
+			SchedulerName(common.BinPackingSchedulerName).
+			Labels(podInfo.Labels).
+			ResourceRequests(podInfo.Requests).
+			TopologySpreadConstraints(podInfo.TopologySpreadConstraints).
+			Tolerations(podInfo.Tolerations).
+			ScheduledOn(podInfo.ScheduledOn.Name).
+			Build()
+		pods = append(pods, pod)
+	}
+	sortPods(pods, sortOrder)
+	return pods
+}
+
+func SplitScheduledAndUnscheduledPods(pods []*corev1.Pod) (unscheduledPods []*corev1.Pod, scheduledPods []*corev1.Pod) {
+	for _, pod := range pods {
+		if isUnscheduled(pod) {
+			unscheduledPods = append(unscheduledPods, pod)
+		} else {
+			scheduledPods = append(scheduledPods, pod)
+		}
+	}
+	return
+}
+
+func isUnscheduled(pod *corev1.Pod) bool {
+	return !isScheduled(pod) &&
+		!isPreempting(pod) &&
+		!isOwnedByDaemonSet(pod)
+}
+
+func isScheduled(pod *corev1.Pod) bool {
+	return pod.Spec.NodeName != ""
+}
+
+func isPreempting(pod *corev1.Pod) bool {
+	return pod.Status.NominatedNodeName != ""
+}
+
+func isOwnedByDaemonSet(pod *corev1.Pod) bool {
+	return isOwnedBy(pod, []schema.GroupVersionKind{
+		{Group: "apps", Version: "v1", Kind: "DaemonSet"},
+	})
+}
+
+func isOwnedBy(pod *corev1.Pod, gvks []schema.GroupVersionKind) bool {
+	for _, ignoredOwner := range gvks {
+		for _, owner := range pod.ObjectMeta.OwnerReferences {
+			if owner.APIVersion == ignoredOwner.GroupVersion().String() && owner.Kind == ignoredOwner.Kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func sortPods(pods []*corev1.Pod, sortOrder string) {
+	if sortOrder == "desc" {
+		slices.SortFunc(pods, sortDescendingFn())
+	} else {
+		slices.SortFunc(pods, sortAscendingFn())
+	}
+}
+
+func sortAscendingFn() func(*corev1.Pod, *corev1.Pod) int {
+	return func(podA, podB *corev1.Pod) int {
+		return podA.Spec.Containers[0].Resources.Requests.Memory().Cmp(*podB.Spec.Containers[0].Resources.Requests.Memory())
+	}
+}
+
+func sortDescendingFn() func(*corev1.Pod, *corev1.Pod) int {
+	return func(podA, podB *corev1.Pod) int {
+		return -podA.Spec.Containers[0].Resources.Requests.Memory().Cmp(*podB.Spec.Containers[0].Resources.Requests.Memory())
+	}
 }

@@ -46,9 +46,20 @@ func OkResult(recommendation Recommendation) Result {
 	return Result{Ok: recommendation}
 }
 
+type ScaleUpRecommendation struct {
+	Zone         string `json:"zone"`
+	NodePoolName string `json:"nodePoolName"`
+	IncrementBy  int32  `json:"incrementBy"`
+	InstanceType string `json:"instanceType"`
+}
+
+func OkScaleUpResult(recommendations []ScaleUpRecommendation) Result {
+	return Result{Ok: Recommendation{ScaleUp: recommendations}}
+}
+
 type Recommendation struct {
-	ScaleUp   map[string]int
-	ScaleDown []string
+	ScaleUp   []ScaleUpRecommendation `json:"scaleUp,omitempty"`
+	ScaleDown []string                `json:"scaleDown,omitempty"`
 }
 
 func NewScaleDownRecommendation(scaleDown []string) Recommendation {

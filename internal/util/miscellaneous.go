@@ -12,6 +12,13 @@ func EmptyOr(val string, defaultVal string) string {
 	return val
 }
 
+func NilOr[T any](val *T, defaultVal T) T {
+	if val == nil {
+		return defaultVal
+	}
+	return *val
+}
+
 func GenerateRandomString(length int) (string, error) {
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {

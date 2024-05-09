@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"unmarshall/scaling-recommender/api"
 
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
@@ -51,4 +52,27 @@ func evaluateNodeFilters(node *corev1.Node, filters []common.NodeFilter) bool {
 		}
 	}
 	return true
+}
+
+func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) []*corev1.Node {
+	nodes := make([]*corev1.Node, 0, len(nodeInfos))
+	for _, np := range nodeInfos {
+		node := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      np.Name,
+				Namespace: "default",
+				Labels:    np.Labels,
+			},
+			Spec: corev1.NodeSpec{
+				Taints: np.Taints,
+			},
+			Status: corev1.NodeStatus{
+				Allocatable: np.Allocatable,
+				Capacity:    np.Capacity,
+				Phase:       corev1.NodeRunning,
+			},
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes
 }
