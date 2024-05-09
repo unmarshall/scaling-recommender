@@ -3,6 +3,7 @@ package util
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"github.com/samber/lo"
 )
 
 func EmptyOr(val string, defaultVal string) string {
@@ -25,4 +26,8 @@ func GenerateRandomString(length int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func AsMap[K comparable, V any](tuple lo.Tuple2[K, V]) map[K]V {
+	return map[K]V{tuple.A: tuple.B}
 }

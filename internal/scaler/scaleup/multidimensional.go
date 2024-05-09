@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unmarshall/scaling-recommender/internal/common"
@@ -22,6 +23,11 @@ import (
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/virtualenv"
+)
+
+const (
+	simRunKey          = "app.kubernetes.io/simulation-run"
+	resourceNameFormat = "%s-simrun-%s"
 )
 
 type recommender struct {
@@ -69,13 +75,14 @@ type simulationState struct {
 	eligibleNodePools map[string]api.NodePool
 }
 
-func NewRecommender(vcp virtualenv.ControlPlane, pa pricing.InstancePricingAccess, logger slog.Logger) scaler.Recommender {
+func NewRecommender(vcp virtualenv.ControlPlane, pa pricing.InstancePricingAccess, refNodes []*corev1.Node, logger slog.Logger) scaler.Recommender {
 	return &recommender{
-		nc:     vcp.NodeControl(),
-		pc:     vcp.PodControl(),
-		ec:     vcp.EventControl(),
-		pa:     pa,
-		logger: logger,
+		nc:       vcp.NodeControl(),
+		pc:       vcp.PodControl(),
+		ec:       vcp.EventControl(),
+		pa:       pa,
+		refNodes: refNodes,
+		logger:   logger,
 	}
 }
 
@@ -95,12 +102,12 @@ func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest) sca
 		simRunStartTime := time.Now()
 		winnerRunResult := r.runSimulation(ctx, runNumber)
 		r.logger.Info("Scale-up recommender run completed", "runNumber", runNumber, "duration", time.Since(simRunStartTime).Seconds())
-		if winnerRunResult.err != nil {
-			r.logger.Error("runSimulation failed", "err", winnerRunResult.err)
-			break
-		}
 		if winnerRunResult == nil {
 			r.logger.Info("No winner could be identified. This will happen when no pods could be assigned. No more runs are required, exiting early", "runNumber", runNumber)
+			break
+		}
+		if winnerRunResult.err != nil {
+			r.logger.Error("runSimulation failed", "err", winnerRunResult.err)
 			break
 		}
 		recommendation := createScaleUpRecommendationFromResult(*winnerRunResult)
@@ -134,8 +141,8 @@ func (r *recommender) getReferenceNode(instanceType string) *corev1.Node {
 }
 
 func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult {
-	var results []runResult
-	resultCh := make(chan runResult, len(r.state.eligibleNodePools))
+	var results []*runResult
+	resultCh := make(chan *runResult, len(r.state.eligibleNodePools))
 	r.triggerNodePoolSimulations(ctx, resultCh, runNum)
 
 	// label, taint, result chan, error chan, close chan
@@ -156,33 +163,29 @@ func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult 
 	return winnerRunResult
 }
 
-func (r *Recommender) triggerNodePoolSimulations(ctx context.Context, resultCh chan runResult, runNum int) {
+func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh chan *runResult, runNum int) {
 	wg := &sync.WaitGroup{}
-	logger := webutil.NewLogger()
-	logger.Log(r.logWriter, fmt.Sprintf("Starting simulation runs for %v nodePools", maps.Keys(r.state.eligibleNodePools)))
+	r.logger.Info("Starting simulation runs for nodePools", "NodePools", maps.Keys(r.state.eligibleNodePools))
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
-		runRef := simRunRef{
-			key:   "app.kubernetes.io/simulation-run",
-			value: nodePool.Name + "-" + strconv.Itoa(runNum),
-		}
-		go r.runSimulationForNodePool(ctx, logger, wg, nodePool, resultCh, runRef)
+		runRef := lo.T2(simRunKey, nodePool.Name+"-"+strconv.Itoa(runNum))
+		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
 	wg.Wait()
 	close(resultCh)
 }
 
-func (r *Recommender) runSimulationForNodePool(ctx context.Context, logger *webutil.Logger, wg *sync.WaitGroup, nodePool scalesim.NodePool, resultCh chan runResult, runRef simRunRef) {
+func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.WaitGroup, nodePool api.NodePool, resultCh chan *runResult, runRef lo.Tuple2[string, string]) {
 	simRunStartTime := time.Now()
 	defer wg.Done()
 	defer func() {
-		logger.Log(r.logWriter, fmt.Sprintf("Simulation run: %s for nodePool: %s completed in %f seconds", runRef.value, nodePool.Name, time.Since(simRunStartTime).Seconds()))
+		r.logger.Info("Simulation run completed", "runRef", runRef.B, "nodePool", nodePool.Name, "duration", time.Since(simRunStartTime).Seconds())
 	}()
 	defer func() {
 		if err := r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
 			// In the productive code, there will not be any real KAPI and ETCD. Fake API server will never return an error as everything will be in memory.
 			// For now, we are only logging this error as in the POC code since the caller of recommender will re-initialize the virtual cluster.
-			logger.Log(r.logWriter, "Error cleaning up simulation run: "+runRef.value+" err: "+err.Error())
+			r.logger.Error("Error cleaning up simulation run", "runRef", runRef.B, "err", err)
 		}
 	}()
 	var (
@@ -191,13 +194,13 @@ func (r *Recommender) runSimulationForNodePool(ctx context.Context, logger *webu
 	)
 	// create a copy of all nodes and scheduled pods only
 	if err = r.setupSimulationRun(ctx, runRef); err != nil {
-		resultCh <- createErrorResult(err)
+		resultCh <- errorRunResult(err)
 		return
 	}
 	for _, zone := range nodePool.Zones {
 		if node != nil {
 			if err = r.resetNodePoolSimRun(ctx, node.Name, runRef); err != nil {
-				resultCh <- createErrorResult(err)
+				resultCh <- errorRunResult(err)
 				return
 			}
 		}
@@ -235,23 +238,30 @@ func (r *Recommender) runSimulationForNodePool(ctx context.Context, logger *webu
 	}
 }
 
-func (r *Recommender) setupSimulationRun(ctx context.Context, runRef simRunRef) error {
+func (r *recommender) cleanUpNodePoolSimRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
+	labels := util.AsMap(runRef)
+	err := r.pc.DeletePodsMatchingLabels(ctx, labels)
+	err = r.nc.DeleteNodesMatchingLabels(ctx, labels)
+	return err
+}
+
+func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
 	// create copy of all nodes (barring existing nodes)
 	clonedNodes := make([]*corev1.Node, 0, len(r.state.existingNodes))
 	for _, node := range r.state.existingNodes {
 		nodeCopy := node.DeepCopy()
-		nodeCopy.Name = fromOriginalResourceName(nodeCopy.Name, runRef.value)
-		nodeCopy.Labels[runRef.key] = runRef.value
+		nodeCopy.Name = fromOriginalResourceName(nodeCopy.Name, runRef.B)
+		nodeCopy.Labels[runRef.A] = runRef.B
 		nodeCopy.Labels["kubernetes.io/hostname"] = nodeCopy.Name
 		nodeCopy.ObjectMeta.UID = ""
 		nodeCopy.ObjectMeta.ResourceVersion = ""
 		nodeCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
 		nodeCopy.Spec.Taints = []corev1.Taint{
-			{Key: runRef.key, Value: runRef.value, Effect: corev1.TaintEffectNoSchedule},
+			{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
 		}
 		clonedNodes = append(clonedNodes, nodeCopy)
 	}
-	if err := r.engine.VirtualClusterAccess().AddNodes(ctx, clonedNodes...); err != nil {
+	if err := r.nc.CreateNodes(ctx, clonedNodes...); err != nil {
 		return err
 	}
 
@@ -259,51 +269,46 @@ func (r *Recommender) setupSimulationRun(ctx context.Context, runRef simRunRef) 
 	clonedScheduledPods := make([]corev1.Pod, 0, len(r.state.scheduledPods))
 	for _, pod := range r.state.scheduledPods {
 		podCopy := pod.DeepCopy()
-		podCopy.Name = fromOriginalResourceName(podCopy.Name, runRef.value)
-		podCopy.Labels[runRef.key] = runRef.value
+		podCopy.Name = fromOriginalResourceName(podCopy.Name, runRef.B)
+		podCopy.Labels[runRef.A] = runRef.B
 		podCopy.ObjectMeta.UID = ""
 		podCopy.ObjectMeta.ResourceVersion = ""
 		podCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
 		podCopy.Spec.Tolerations = []corev1.Toleration{
-			{Key: runRef.key, Value: runRef.value, Effect: corev1.TaintEffectNoSchedule, Operator: corev1.TolerationOpEqual},
+			{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule, Operator: corev1.TolerationOpEqual},
 		}
 		if len(podCopy.Spec.TopologySpreadConstraints) > 0 {
 			updatedTSC := make([]corev1.TopologySpreadConstraint, 0, len(podCopy.Spec.TopologySpreadConstraints))
 			for _, tsc := range podCopy.Spec.TopologySpreadConstraints {
-				tsc.LabelSelector.MatchLabels[runRef.key] = runRef.value
+				tsc.LabelSelector.MatchLabels[runRef.A] = runRef.B
 				updatedTSC = append(updatedTSC, tsc)
 			}
 			podCopy.Spec.TopologySpreadConstraints = updatedTSC
 		}
-		podCopy.Spec.NodeName = fromOriginalResourceName(podCopy.Spec.NodeName, runRef.value)
+		podCopy.Spec.NodeName = fromOriginalResourceName(podCopy.Spec.NodeName, runRef.B)
 		clonedScheduledPods = append(clonedScheduledPods, *podCopy)
 	}
-	if err := r.engine.VirtualClusterAccess().AddPods(ctx, clonedScheduledPods...); err != nil {
+	if err := r.pc.CreatePods(ctx, clonedScheduledPods...); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *Recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, runRef simRunRef) error {
+func (r *recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, runRef lo.Tuple2[string, string]) error {
 	// remove the node with the nodeName
-	if err := r.engine.VirtualClusterAccess().DeleteNode(ctx, nodeName); err != nil {
+	if err := r.nc.DeleteNodes(ctx, nodeName); err != nil {
 		return err
 	}
-	// remove the pods with nodeName
-	pods, err := r.engine.VirtualClusterAccess().ListPodsMatchingLabels(ctx, runRef.asMap())
-	if err != nil {
-		return err
-	}
-	return r.engine.VirtualClusterAccess().DeletePods(ctx, pods...)
+	return r.pc.DeletePodsMatchingLabels(ctx, util.AsMap(runRef))
 }
 
-func getWinningRunResult(results []runResult) *runResult {
+func getWinningRunResult(results []*runResult) *runResult {
 	if len(results) == 0 {
 		return nil
 	}
-	var winner runResult
+	var winner *runResult
 	minScore := math.MaxFloat64
-	var winningRunResults []runResult
+	var winningRunResults []*runResult
 	for _, v := range results {
 		if v.nodeScore.cumulativeScore < minScore {
 			winner = v
@@ -318,7 +323,7 @@ func getWinningRunResult(results []runResult) *runResult {
 	rand.Seed(uint64(time.Now().UnixNano()))
 	winningIndex := rand.Intn(len(winningRunResults))
 	winner = winningRunResults[winningIndex]
-	return &winner
+	return winner
 }
 
 func createScaleUpRecommendationFromResult(result runResult) scaler.ScaleUpRecommendation {
@@ -344,6 +349,10 @@ func appendScaleUpRecommendation(recommendations []scaler.ScaleUpRecommendation,
 	}
 }
 
-func (r *recommender) syncWinningResult(ctx context.Context, recommendation interface{}, result interface{}) error {
+func fromOriginalResourceName(name, suffix string) string {
+	return fmt.Sprintf(resourceNameFormat, name, suffix)
+}
 
+func toOriginalResourceName(simResName string) string {
+	return strings.Split(simResName, "-simrun-")[0]
 }

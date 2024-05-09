@@ -14,7 +14,7 @@ import (
 
 type NodeControl interface {
 	// CreateNodes creates new nodes in the in-memory controlPlane from the given node specs.
-	CreateNodes(ctx context.Context, nodes ...corev1.Node) error
+	CreateNodes(ctx context.Context, nodes ...*corev1.Node) error
 	// ListNodes returns the current nodes of the in-memory controlPlane.
 	ListNodes(ctx context.Context, filters ...common.NodeFilter) ([]corev1.Node, error)
 	// TaintNodes taints the given nodes with the given taint.
@@ -25,6 +25,8 @@ type NodeControl interface {
 	DeleteNodes(ctx context.Context, nodeNames ...string) error
 	// DeleteAllNodes deletes all nodes from the in-memory controlPlane.
 	DeleteAllNodes(ctx context.Context) error
+	// DeleteNodesMatchingLabels deletes all nodes matching labels
+	DeleteNodesMatchingLabels(ctx context.Context, labels map[string]string) error
 }
 
 type nodeControl struct {
@@ -37,10 +39,12 @@ func NewNodeControl(cl client.Client) NodeControl {
 	}
 }
 
-func (n nodeControl) CreateNodes(ctx context.Context, nodes ...corev1.Node) error {
+func (n nodeControl) CreateNodes(ctx context.Context, nodes ...*corev1.Node) error {
 	var errs error
 	for _, node := range nodes {
-		errors.Join(errs, n.client.Create(ctx, &node))
+		node.ObjectMeta.ResourceVersion = ""
+		node.ObjectMeta.UID = ""
+		errs = errors.Join(errs, n.client.Create(ctx, node))
 	}
 	return errs
 }
@@ -105,4 +109,8 @@ func (n nodeControl) DeleteNodes(ctx context.Context, nodeNames ...string) error
 
 func (n nodeControl) DeleteAllNodes(ctx context.Context) error {
 	return n.client.DeleteAllOf(ctx, &corev1.Node{})
+}
+
+func (n nodeControl) DeleteNodesMatchingLabels(ctx context.Context, labels map[string]string) error {
+	return n.client.DeleteAllOf(ctx, &corev1.Node{}, client.MatchingLabels(labels))
 }

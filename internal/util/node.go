@@ -76,3 +76,34 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) []*corev1.Node {
 	}
 	return nodes
 }
+
+func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {
+	nodeNamePrefix, err := GenerateRandomString(4)
+	if err != nil {
+		return nil, err
+	}
+	nodeName := nodeNamePrefix + "-" + poolName + "-simrun-" + runRef.B
+	nodeLabels := refNode.Labels
+	nodeLabels[common.TopologyZoneLabelKey] = zone
+	nodeLabels[runRef.A] = runRef.B
+	nodeLabels["kubernetes.io/hostname"] = nodeName
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nodeName,
+			Namespace: "default",
+			Labels:    nodeLabels,
+		},
+		Spec: corev1.NodeSpec{
+			Taints: []corev1.Taint{
+				{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: refNode.Status.Allocatable,
+			Capacity:    refNode.Status.Capacity,
+			Phase:       corev1.NodeRunning,
+		},
+	}
+	return node, nil
+}

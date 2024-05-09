@@ -24,6 +24,10 @@ type PodControl interface {
 	DeletePods(ctx context.Context, pods ...corev1.Pod) error
 	// DeleteAllPods deletes all pods from the in-memory controlPlane.
 	DeleteAllPods(ctx context.Context) error
+	// DeletePodsMatchingLabels deletes all pods matching labels
+	DeletePodsMatchingLabels(ctx context.Context, labels map[string]string) error
+	// ListPodsMatchingLabels lists all pods matching labels
+	ListPodsMatchingLabels(ctx context.Context, labels map[string]string) ([]corev1.Pod, error)
 }
 
 type podControl struct {
@@ -38,6 +42,15 @@ func NewPodControl(cl client.Client) PodControl {
 
 func (p podControl) ListPods(ctx context.Context, filters ...common.PodFilter) ([]corev1.Pod, error) {
 	return util.ListPods(ctx, p.client, filters...)
+}
+
+func (p podControl) ListPodsMatchingLabels(ctx context.Context, labels map[string]string) ([]corev1.Pod, error) {
+	podList := corev1.PodList{}
+	if err := p.client.List(ctx, &podList, client.MatchingLabels(labels)); err != nil {
+		slog.Error("cannot list nodes", "labels", labels, "error", err)
+		return nil, err
+	}
+	return podList.Items, nil
 }
 
 func (p podControl) CreatePodsAsUnscheduled(ctx context.Context, schedulerName string, pods ...corev1.Pod) error {
@@ -98,4 +111,8 @@ func (p podControl) DeletePods(ctx context.Context, pods ...corev1.Pod) error {
 
 func (p podControl) DeleteAllPods(ctx context.Context) error {
 	return p.client.DeleteAllOf(ctx, &corev1.Pod{})
+}
+
+func (p podControl) DeletePodsMatchingLabels(ctx context.Context, labels map[string]string) error {
+	return p.client.DeleteAllOf(ctx, &corev1.Pod{}, client.MatchingLabels(labels))
 }
