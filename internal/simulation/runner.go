@@ -81,7 +81,7 @@ func (e *engine) TargetShootCoordinate() common.ShootCoordinate {
 
 func (e *engine) routes() *http.ServeMux {
 	mux := http.NewServeMux()
-	h := Handler{engine: e}
+	h := NewSimulationHandler(e)
 	mux.HandleFunc("POST /simulation/", h.run)
 	return mux
 }

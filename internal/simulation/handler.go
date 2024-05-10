@@ -41,6 +41,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
 		return
 	}
-	// TODO change this to properly serialize the recommendation
-	web.WriteJSON(w, http.StatusOK, web.ResponseEnvelope{"recommendation": result.Ok})
+	if err = web.WriteJSON(w, http.StatusOK, web.ResponseEnvelope{"recommendation": result.Ok}); err != nil {
+		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
+	}
 }

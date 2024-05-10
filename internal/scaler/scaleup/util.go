@@ -2,12 +2,13 @@ package scaleup
 
 import (
 	"fmt"
-	"golang.org/x/exp/rand"
-	"k8s.io/api/core/v1"
 	"log/slog"
 	"math"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/rand"
+	"k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/internal/scaler"
 )
 
@@ -30,7 +31,10 @@ func computeWasteRatio(node *v1.Node, candidatePods []v1.Pod) float64 {
 		if pod.Spec.NodeName == node.Name {
 			targetNodeAssignedPods = append(targetNodeAssignedPods, pod)
 			for _, container := range pod.Spec.Containers {
-				totalMemoryConsumed += container.Resources.Requests.Memory().MilliValue()
+				containerMemReq, ok := container.Resources.Requests[v1.ResourceMemory]
+				if ok {
+					totalMemoryConsumed += containerMemReq.MilliValue()
+				}
 			}
 			slog.Info("NodPodAssignment: ", "pod", pod.Name, "node", pod.Spec.NodeName, "memory", pod.Spec.Containers[0].Resources.Requests.Memory().MilliValue())
 		}
