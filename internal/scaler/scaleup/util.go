@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/exp/rand"
 	"k8s.io/api/core/v1"
-	"unmarshall/scaling-recommender/internal/scaler"
+	"unmarshall/scaling-recommender/api"
 )
 
 func computeUnscheduledRatio(candidatePods []v1.Pod) float64 {
@@ -67,8 +67,8 @@ func getWinningRunResult(results []*runResult) *runResult {
 	return winner
 }
 
-func createScaleUpRecommendationFromResult(result runResult) scaler.ScaleUpRecommendation {
-	return scaler.ScaleUpRecommendation{
+func createScaleUpRecommendationFromResult(result runResult) api.ScaleUpRecommendation {
+	return api.ScaleUpRecommendation{
 		Zone:         result.zone,
 		NodePoolName: result.nodePoolName,
 		IncrementBy:  int32(1),
@@ -76,7 +76,7 @@ func createScaleUpRecommendationFromResult(result runResult) scaler.ScaleUpRecom
 	}
 }
 
-func appendScaleUpRecommendation(recommendations []scaler.ScaleUpRecommendation, recommendation scaler.ScaleUpRecommendation) {
+func appendScaleUpRecommendation(recommendations []api.ScaleUpRecommendation, recommendation api.ScaleUpRecommendation) {
 	var found bool
 	for i, r := range recommendations {
 		if r.NodePoolName == recommendation.NodePoolName {

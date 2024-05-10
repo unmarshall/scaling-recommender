@@ -2,10 +2,10 @@ package scaler
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/scaler/scaleup"
 
@@ -14,16 +14,11 @@ import (
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
-var (
-	ErrScalingAlgoVariantNotRegistered = errors.New("requested scaling algo variant is not registered")
-)
-
 type AlgoVariant string
 
 const (
-	MultiDimensionScoringScaleUpAlgo           AlgoVariant = "multi-dimensional-scoring-scale-up"
-	ConcurrentMultiDimensionScoringScaleUpAlgo AlgoVariant = "concurrent-multi-dimensional-scoring-scale-up"
-	DescendingCostScaleDownAlgo                AlgoVariant = "descending-cost-scale-down"
+	MultiDimensionScoringScaleUpAlgo AlgoVariant = "multi-dimensional-scoring-scale-up"
+	DescendingCostScaleDownAlgo      AlgoVariant = "descending-cost-scale-down"
 )
 
 type LogWriterFlusher interface {
@@ -32,7 +27,7 @@ type LogWriterFlusher interface {
 }
 
 type Result struct {
-	Ok  Recommendation
+	Ok  api.Recommendation
 	Err error
 }
 
@@ -44,28 +39,16 @@ func ErrorResult(err error) Result {
 	return Result{Err: err}
 }
 
-func OkResult(recommendation Recommendation) Result {
+func OkResult(recommendation api.Recommendation) Result {
 	return Result{Ok: recommendation}
 }
 
-type ScaleUpRecommendation struct {
-	Zone         string `json:"zone"`
-	NodePoolName string `json:"nodePoolName"`
-	IncrementBy  int32  `json:"incrementBy"`
-	InstanceType string `json:"instanceType"`
+func OkScaleUpResult(recommendations []api.ScaleUpRecommendation) Result {
+	return Result{Ok: api.Recommendation{ScaleUp: recommendations}}
 }
 
-func OkScaleUpResult(recommendations []ScaleUpRecommendation) Result {
-	return Result{Ok: Recommendation{ScaleUp: recommendations}}
-}
-
-type Recommendation struct {
-	ScaleUp   []ScaleUpRecommendation `json:"scaleUp,omitempty"`
-	ScaleDown []string                `json:"scaleDown,omitempty"`
-}
-
-func NewScaleDownRecommendation(scaleDown []string) Recommendation {
-	return Recommendation{ScaleDown: scaleDown}
+func NewScaleDownRecommendation(scaleDown []string) api.Recommendation {
+	return api.Recommendation{ScaleDown: scaleDown}
 }
 
 type Factory interface {

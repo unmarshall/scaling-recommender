@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
 	"unmarshall/scaling-recommender/internal/pricing"
 
 	"github.com/samber/lo"
@@ -76,7 +77,7 @@ type simulationState struct {
 	eligibleNodePools map[string]api.NodePool
 }
 
-func (s *simulationState) updateEligibleNodePools(recommendation *scaler.ScaleUpRecommendation) {
+func (s *simulationState) updateEligibleNodePools(recommendation *api.ScaleUpRecommendation) {
 	np, ok := s.eligibleNodePools[recommendation.NodePoolName]
 	if !ok {
 		return
@@ -101,7 +102,7 @@ func NewRecommender(vcp virtualenv.ControlPlane, refNodes []corev1.Node, pa pric
 
 func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) scaler.Result {
 	var (
-		recommendations []scaler.ScaleUpRecommendation
+		recommendations []api.ScaleUpRecommendation
 		runNumber       int
 	)
 	r.logger = logger
@@ -381,7 +382,7 @@ func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeNam
 	}
 }
 
-func (r *recommender) syncWinningResult(ctx context.Context, recommendation *scaler.ScaleUpRecommendation, winningRunResult *runResult) error {
+func (r *recommender) syncWinningResult(ctx context.Context, recommendation *api.ScaleUpRecommendation, winningRunResult *runResult) error {
 	startTime := time.Now()
 	defer func() {
 		r.logger.Info("syncWinningResult for nodePool completed", "nodePool", recommendation.NodePoolName, "duration", time.Since(startTime).Seconds())
@@ -429,7 +430,7 @@ func (r *recommender) syncClusterWithWinningResult(ctx context.Context, winningR
 	return util.GetPodNames(scheduledPods), nil
 }
 
-func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context, recommendation *scaler.ScaleUpRecommendation, winningNodeName string, scheduledPodNames []string) error {
+func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context, recommendation *api.ScaleUpRecommendation, winningNodeName string, scheduledPodNames []string) error {
 	winnerNode, err := r.nc.GetNode(ctx, types.NamespacedName{Name: winningNodeName, Namespace: common.DefaultNamespace})
 	if err != nil {
 		return err

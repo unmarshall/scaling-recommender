@@ -47,3 +47,15 @@ type SimulationRequest struct {
 	// If not provided, pods will be ordered in descending order of requested resources.
 	PodOrder *string
 }
+
+type Recommendation struct {
+	ScaleUp   []ScaleUpRecommendation `json:"scaleUp,omitempty"`
+	ScaleDown []string                `json:"scaleDown,omitempty"`
+}
+
+type ScaleUpRecommendation struct {
+	Zone         string `json:"zone"`
+	NodePoolName string `json:"nodePoolName"`
+	IncrementBy  int32  `json:"incrementBy"`
+	InstanceType string `json:"instanceType"`
+}
