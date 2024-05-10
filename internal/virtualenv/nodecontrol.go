@@ -20,7 +20,7 @@ type NodeControl interface {
 	// TaintNodes taints the given nodes with the given taint.
 	TaintNodes(ctx context.Context, taint corev1.Taint, nodes ...corev1.Node) error
 	//UnTaintNodes removes the given taint from the given nodes.
-	UnTaintNodes(ctx context.Context, taintKey string, nodes ...corev1.Node) error
+	UnTaintNodes(ctx context.Context, taintKey string, nodes ...*corev1.Node) error
 	// DeleteNodes deletes the nodes identified by the given names from the in-memory controlPlane.
 	DeleteNodes(ctx context.Context, nodeNames ...string) error
 	// DeleteAllNodes deletes all nodes from the in-memory controlPlane.
@@ -70,7 +70,7 @@ func (n nodeControl) TaintNodes(ctx context.Context, taint corev1.Taint, nodes .
 	return errs
 }
 
-func (n nodeControl) UnTaintNodes(ctx context.Context, taintKey string, nodes ...corev1.Node) error {
+func (n nodeControl) UnTaintNodes(ctx context.Context, taintKey string, nodes ...*corev1.Node) error {
 	var errs error
 	failedToPatchNodeNames := make([]string, 0, len(nodes))
 	for _, node := range nodes {
@@ -82,7 +82,7 @@ func (n nodeControl) UnTaintNodes(ctx context.Context, taintKey string, nodes ..
 			}
 		}
 		node.Spec.Taints = newTaints
-		if err := n.client.Patch(ctx, &node, patch); err != nil {
+		if err := n.client.Patch(ctx, node, patch); err != nil {
 			failedToPatchNodeNames = append(failedToPatchNodeNames, node.Name)
 			errors.Join(errs, err)
 		}

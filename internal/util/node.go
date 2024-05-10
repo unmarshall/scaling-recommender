@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+
 	"unmarshall/scaling-recommender/api"
 
 	"github.com/samber/lo"
@@ -106,4 +107,8 @@ func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef 
 		},
 	}
 	return node, nil
+}
+
+func GetInstanceType(node *corev1.Node) string {
+	return node.Labels[common.InstanceTypeLabelKey]
 }

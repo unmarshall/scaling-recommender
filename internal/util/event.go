@@ -18,7 +18,7 @@ import (
 func WaitForAndRecordPodSchedulingEvents(ctx context.Context, ec virtualenv.EventControl, since time.Time, pods []corev1.Pod, timeout time.Duration) (scheduledPodNames sets.Set[string], unscheduledPodNames sets.Set[string], err error) {
 	tick := time.NewTicker(timeout)
 	defer tick.Stop()
-	pollTick := time.NewTicker(100 * time.Millisecond)
+	pollTick := time.NewTicker(10 * time.Millisecond)
 	defer pollTick.Stop()
 
 	podNames := GetPodNames(pods)
@@ -49,6 +49,7 @@ loop:
 					unscheduledPodNames.Delete(event.InvolvedObject.Name)
 				}
 			}
+			slog.Info("WaitForAndRecordPodSchedulingEvents completed", "num-total-pods", len(pods), "num-scheduled-pods", len(scheduledPodNames), "num-unscheduled-pods", len(unscheduledPodNames))
 			if len(scheduledPodNames)+len(unscheduledPodNames) == len(pods) {
 				break loop
 			}

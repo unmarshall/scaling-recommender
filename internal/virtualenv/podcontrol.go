@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/internal/common"
@@ -16,6 +17,12 @@ import (
 type PodControl interface {
 	// ListPods will get all pods and apply the given filters to the pods in conjunction. If no filters are given, all pods are returned.
 	ListPods(ctx context.Context, filters ...common.PodFilter) ([]corev1.Pod, error)
+	// ListPodsMatchingLabels lists all pods matching labels
+	ListPodsMatchingLabels(ctx context.Context, labels map[string]string) ([]corev1.Pod, error)
+	// GetPodsMatchingPodNames returns all pods matching the given pod names. You would use this method over ListPods
+	// to reduce the load on KAPI. Get calls are cached and list calls are not. Once in-memory KAPI is
+	// replaced with the fake API server then this optimization will no longer be needed.
+	GetPodsMatchingPodNames(ctx context.Context, namespace string, podNames ...string) ([]corev1.Pod, error)
 	// CreatePodsAsUnscheduled creates new unscheduled pods in the in-memory controlPlane from the given schedulerName and pod specs.
 	CreatePodsAsUnscheduled(ctx context.Context, schedulerName string, pods ...corev1.Pod) error
 	// CreatePods creates new pods in the in-memory controlPlane.
@@ -26,8 +33,6 @@ type PodControl interface {
 	DeleteAllPods(ctx context.Context) error
 	// DeletePodsMatchingLabels deletes all pods matching labels
 	DeletePodsMatchingLabels(ctx context.Context, labels map[string]string) error
-	// ListPodsMatchingLabels lists all pods matching labels
-	ListPodsMatchingLabels(ctx context.Context, labels map[string]string) ([]corev1.Pod, error)
 }
 
 type podControl struct {
@@ -51,6 +56,18 @@ func (p podControl) ListPodsMatchingLabels(ctx context.Context, labels map[strin
 		return nil, err
 	}
 	return podList.Items, nil
+}
+
+func (p podControl) GetPodsMatchingPodNames(ctx context.Context, namespace string, podNames ...string) ([]corev1.Pod, error) {
+	pods := make([]corev1.Pod, 0, len(podNames))
+	for _, podName := range podNames {
+		pod := corev1.Pod{}
+		if err := client.IgnoreNotFound(p.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: podName}, &pod)); err != nil {
+			return nil, err
+		}
+		pods = append(pods, pod)
+	}
+	return pods, nil
 }
 
 func (p podControl) CreatePodsAsUnscheduled(ctx context.Context, schedulerName string, pods ...corev1.Pod) error {

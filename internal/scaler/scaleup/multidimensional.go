@@ -4,23 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/samber/lo"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/rand"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"log/slog"
 	"math"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/samber/lo"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/rand"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/util"
 
 	corev1 "k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/api"
-	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/virtualenv"
 )
@@ -31,13 +32,13 @@ const (
 )
 
 type recommender struct {
-	nc       virtualenv.NodeControl
-	pc       virtualenv.PodControl
-	ec       virtualenv.EventControl
-	pa       pricing.InstancePricingAccess
-	refNodes []*corev1.Node
-	state    simulationState
-	logger   slog.Logger
+	nc                     virtualenv.NodeControl
+	pc                     virtualenv.PodControl
+	ec                     virtualenv.EventControl
+	refNodes               []*corev1.Node
+	instanceTypeCostRatios map[string]float64
+	state                  simulationState
+	logger                 slog.Logger
 }
 
 type nodeScore struct {
@@ -75,14 +76,14 @@ type simulationState struct {
 	eligibleNodePools map[string]api.NodePool
 }
 
-func NewRecommender(vcp virtualenv.ControlPlane, pa pricing.InstancePricingAccess, refNodes []*corev1.Node, logger slog.Logger) scaler.Recommender {
+func NewRecommender(vcp virtualenv.ControlPlane, refNodes []*corev1.Node, instanceTypeCostRatios map[string]float64, logger slog.Logger) scaler.Recommender {
 	return &recommender{
-		nc:       vcp.NodeControl(),
-		pc:       vcp.PodControl(),
-		ec:       vcp.EventControl(),
-		pa:       pa,
-		refNodes: refNodes,
-		logger:   logger,
+		nc:                     vcp.NodeControl(),
+		pc:                     vcp.PodControl(),
+		ec:                     vcp.EventControl(),
+		refNodes:               refNodes,
+		instanceTypeCostRatios: instanceTypeCostRatios,
+		logger:                 logger,
 	}
 }
 
@@ -136,7 +137,7 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) {
 
 func (r *recommender) getReferenceNode(instanceType string) *corev1.Node {
 	return lo.Filter(r.refNodes, func(n *corev1.Node, _ int) bool {
-		return n.Labels[common.InstanceTypeLabelKey] == instanceType
+		return util.GetInstanceType(n) == instanceType
 	})[0]
 }
 
@@ -204,37 +205,37 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 				return
 			}
 		}
-		node, err = r.constructNodeFromExistingNodeOfInstanceType(nodePool.MachineType, nodePool.Name, zone, true, &runRef)
+		node, err = util.ConstructNodeForSimRun(r.getReferenceNode(nodePool.InstanceType), nodePool.Name, zone, runRef)
 		if err != nil {
-			resultCh <- createErrorResult(err)
+			resultCh <- errorRunResult(err)
 			return
 		}
-		if err = r.engine.VirtualClusterAccess().AddNodes(ctx, node); err != nil {
-			resultCh <- createErrorResult(err)
+		if err = r.nc.CreateNodes(ctx, node); err != nil {
+			resultCh <- errorRunResult(err)
 			return
 		}
-		if err = r.engine.VirtualClusterAccess().RemoveTaintFromVirtualNodes(ctx, "node.kubernetes.io/not-ready"); err != nil {
+		if err = r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, node); err != nil {
+			resultCh <- errorRunResult(err)
 			return
 		}
+
 		deployTime := time.Now()
 		unscheduledPods, err := r.createAndDeployUnscheduledPods(ctx, runRef)
 		if err != nil {
+			resultCh <- errorRunResult(err)
 			return
 		}
-		// in production code FAKE KAPI will not return any error. This is only for POC code where an envtest KAPI is used.
-		_, _, err = simutil.WaitForAndRecordPodSchedulingEvents(ctx, r.engine.VirtualClusterAccess(), r.logWriter, deployTime, unscheduledPods, 10*time.Second)
-		if err != nil {
-			resultCh <- createErrorResult(err)
+		if _, _, err = util.WaitForAndRecordPodSchedulingEvents(ctx, r.ec, deployTime, unscheduledPods, 10*time.Second); err != nil {
+			resultCh <- errorRunResult(err)
 			return
 		}
-		simRunCandidatePods, err := r.engine.VirtualClusterAccess().GetPods(ctx, "default", simutil.PodNames(unscheduledPods))
-		//simRunCandidatePods, err := r.engine.VirtualClusterAccess().ListPodsMatchingLabels(ctx, runRef.asMap())
+		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, util.GetPodNames(unscheduledPods)...)
 		if err != nil {
-			resultCh <- createErrorResult(err)
+			resultCh <- errorRunResult(err)
 			return
 		}
 		ns := r.computeNodeScore(node, simRunCandidatePods)
-		resultCh <- r.computeRunResult(nodePool.Name, nodePool.MachineType, zone, node.Name, ns, simRunCandidatePods)
+		resultCh <- r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node.Name, ns, simRunCandidatePods)
 	}
 }
 
@@ -300,6 +301,97 @@ func (r *recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, 
 		return err
 	}
 	return r.pc.DeletePodsMatchingLabels(ctx, util.AsMap(runRef))
+}
+
+func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef lo.Tuple2[string, string]) ([]corev1.Pod, error) {
+	unscheduledPods := make([]corev1.Pod, 0, len(r.state.unscheduledPods))
+	for _, pod := range r.state.unscheduledPods {
+		podCopy := pod.DeepCopy()
+		podCopy.Name = fromOriginalResourceName(podCopy.Name, runRef.B)
+		podCopy.Labels[runRef.A] = runRef.B
+		podCopy.ObjectMeta.UID = ""
+		podCopy.ObjectMeta.ResourceVersion = ""
+		podCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
+		podCopy.Spec.Tolerations = []corev1.Toleration{
+			{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule, Operator: corev1.TolerationOpEqual},
+		}
+		if len(podCopy.Spec.TopologySpreadConstraints) > 0 {
+			updatedTSC := make([]corev1.TopologySpreadConstraint, 0, len(podCopy.Spec.TopologySpreadConstraints))
+			for _, tsc := range podCopy.Spec.TopologySpreadConstraints {
+				tsc.LabelSelector.MatchLabels[runRef.A] = runRef.B
+				updatedTSC = append(updatedTSC, tsc)
+			}
+			podCopy.Spec.TopologySpreadConstraints = updatedTSC
+		}
+		podCopy.Spec.SchedulerName = common.BinPackingSchedulerName
+		unscheduledPods = append(unscheduledPods, *podCopy)
+	}
+	return unscheduledPods, r.pc.CreatePods(ctx, unscheduledPods...)
+}
+
+func (r *recommender) computeNodeScore(scaledNode *corev1.Node, candidatePods []corev1.Pod) nodeScore {
+	costRatio := r.instanceTypeCostRatios[util.GetInstanceType(scaledNode)]
+	wasteRatio := computeWasteRatio(scaledNode, candidatePods)
+	unscheduledRatio := computeUnscheduledRatio(candidatePods)
+	cumulativeScore := wasteRatio + unscheduledRatio*costRatio
+	return nodeScore{
+		wasteRatio:       wasteRatio,
+		unscheduledRatio: unscheduledRatio,
+		costRatio:        costRatio,
+		cumulativeScore:  cumulativeScore,
+	}
+}
+
+func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeName string, score nodeScore, pods []corev1.Pod) *runResult {
+	if score.unscheduledRatio == 1.0 {
+		return &runResult{}
+	}
+	unscheduledPods := make([]corev1.Pod, 0, len(pods))
+	nodeToPods := make(map[string][]types.NamespacedName)
+	for _, pod := range pods {
+		if pod.Spec.NodeName == "" {
+			unscheduledPods = append(unscheduledPods, pod)
+		} else {
+			nodeToPods[pod.Spec.NodeName] = append(nodeToPods[pod.Spec.NodeName], client.ObjectKeyFromObject(&pod))
+		}
+	}
+	return &runResult{
+		nodePoolName:    nodePoolName,
+		nodeName:        toOriginalResourceName(nodeName),
+		zone:            zone,
+		instanceType:    instanceType,
+		nodeScore:       score,
+		unscheduledPods: unscheduledPods,
+		nodeToPods:      nodeToPods,
+	}
+}
+
+func computeUnscheduledRatio(candidatePods []corev1.Pod) float64 {
+	var totalAssignedPods int
+	for _, pod := range candidatePods {
+		if pod.Spec.NodeName != "" {
+			totalAssignedPods++
+		}
+	}
+	return float64(len(candidatePods)-totalAssignedPods) / float64(len(candidatePods))
+}
+
+func computeWasteRatio(node *corev1.Node, candidatePods []corev1.Pod) float64 {
+	var (
+		targetNodeAssignedPods []corev1.Pod
+		totalMemoryConsumed    int64
+	)
+	for _, pod := range candidatePods {
+		if pod.Spec.NodeName == node.Name {
+			targetNodeAssignedPods = append(targetNodeAssignedPods, pod)
+			for _, container := range pod.Spec.Containers {
+				totalMemoryConsumed += container.Resources.Requests.Memory().MilliValue()
+			}
+			slog.Info("NodPodAssignment: ", "pod", pod.Name, "node", pod.Spec.NodeName, "memory", pod.Spec.Containers[0].Resources.Requests.Memory().MilliValue())
+		}
+	}
+	totalMemoryCapacity := node.Status.Capacity.Memory().MilliValue()
+	return float64(totalMemoryCapacity-totalMemoryConsumed) / float64(totalMemoryCapacity)
 }
 
 func getWinningRunResult(results []*runResult) *runResult {
