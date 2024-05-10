@@ -27,8 +27,8 @@ func PodSchedulingFailed(pod *corev1.Pod) bool {
 	return false
 }
 
-func GetPodNames(pods []corev1.Pod) []string {
-	return lo.Map[corev1.Pod, string](pods, func(pod corev1.Pod, _ int) string {
+func GetPodNames(pods []*corev1.Pod) []string {
+	return lo.Map[*corev1.Pod, string](pods, func(pod *corev1.Pod, _ int) string {
 		return pod.Name
 	})
 }

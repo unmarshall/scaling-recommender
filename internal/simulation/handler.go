@@ -35,8 +35,8 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	logger := baseLogger.With("id", simRequest.ID)
 	logger.Info("received simulation request", "request", simRequest)
 
-	recommender := scaler.NewFactory(h.engine.VirtualControlPlane(), h.engine.PricingAccess()).GetRecommender(scaler.MultiDimensionScoringScaleUpAlgo)
-	result := recommender.Run(r.Context(), *simRequest)
+	recommender := h.engine.RecommenderFactory().GetRecommender(scaler.MultiDimensionScoringScaleUpAlgo)
+	result := recommender.Run(r.Context(), *simRequest, *logger)
 	if result.IsError() {
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
 		return

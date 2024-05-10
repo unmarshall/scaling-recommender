@@ -15,7 +15,7 @@ import (
 )
 
 // WaitForAndRecordPodSchedulingEvents watches for pod scheduling events and returns the names of the pods that have been scheduled and unscheduled.
-func WaitForAndRecordPodSchedulingEvents(ctx context.Context, ec virtualenv.EventControl, since time.Time, pods []corev1.Pod, timeout time.Duration) (scheduledPodNames sets.Set[string], unscheduledPodNames sets.Set[string], err error) {
+func WaitForAndRecordPodSchedulingEvents(ctx context.Context, ec virtualenv.EventControl, since time.Time, pods []*corev1.Pod, timeout time.Duration) (scheduledPodNames sets.Set[string], unscheduledPodNames sets.Set[string], err error) {
 	tick := time.NewTicker(timeout)
 	defer tick.Stop()
 	pollTick := time.NewTicker(10 * time.Millisecond)

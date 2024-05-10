@@ -29,6 +29,7 @@ type engine struct {
 	virtualControlPlane virtualenv.ControlPlane
 	pricingAccess       pricing.InstancePricingAccess
 	targetShootCoord    *common.ShootCoordinate
+	recommenderFactory  scaler.Factory
 }
 
 func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinate) Engine {
@@ -40,6 +41,7 @@ func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPla
 		virtualControlPlane: vControlPlane,
 		pricingAccess:       pricingAccess,
 		targetShootCoord:    targetShootCoord,
+		recommenderFactory:  scaler.NewFactory(gardenAccess, vControlPlane, pricingAccess),
 	}
 }
 
@@ -70,7 +72,7 @@ func (e *engine) PricingAccess() pricing.InstancePricingAccess {
 }
 
 func (e *engine) RecommenderFactory() scaler.Factory {
-	return scaler.NewFactory(e.virtualControlPlane, e.pricingAccess)
+	return e.recommenderFactory
 }
 
 func (e *engine) TargetShootCoordinate() common.ShootCoordinate {

@@ -84,21 +84,39 @@ func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef 
 		return nil, err
 	}
 	nodeName := nodeNamePrefix + "-" + poolName + "-simrun-" + runRef.B
-	nodeLabels := refNode.Labels
-	nodeLabels[common.TopologyZoneLabelKey] = zone
-	nodeLabels[runRef.A] = runRef.B
-	nodeLabels["kubernetes.io/hostname"] = nodeName
+	labels := refNode.Labels
+	labels[common.TopologyZoneLabelKey] = zone
+	labels[runRef.A] = runRef.B
+	labels[common.TopologyHostLabelKey] = nodeName
+	taints := []corev1.Taint{
+		{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
+	}
 
-	node := &corev1.Node{
+	return doConstructNodeFromRefNode(refNode, nodeName, labels, taints), nil
+}
+
+func ConstructNodeFromRefNode(refNode *corev1.Node, poolName, zone string) (*corev1.Node, error) {
+	nodeNamePrefix, err := GenerateRandomString(4)
+	if err != nil {
+		return nil, err
+	}
+	nodeName := nodeNamePrefix + "-" + poolName
+	labels := refNode.Labels
+	labels[common.TopologyZoneLabelKey] = zone
+	labels[common.TopologyHostLabelKey] = nodeName
+
+	return doConstructNodeFromRefNode(refNode, nodeName, labels, nil), nil
+}
+
+func doConstructNodeFromRefNode(refNode *corev1.Node, newNodeName string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
+	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      nodeName,
-			Namespace: "default",
-			Labels:    nodeLabels,
+			Name:      newNodeName,
+			Namespace: common.DefaultNamespace,
+			Labels:    labels,
 		},
 		Spec: corev1.NodeSpec{
-			Taints: []corev1.Taint{
-				{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
-			},
+			Taints: taints,
 		},
 		Status: corev1.NodeStatus{
 			Allocatable: refNode.Status.Allocatable,
@@ -106,7 +124,6 @@ func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef 
 			Phase:       corev1.NodeRunning,
 		},
 	}
-	return node, nil
 }
 
 func GetInstanceType(node *corev1.Node) string {

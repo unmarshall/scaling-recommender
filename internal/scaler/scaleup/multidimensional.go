@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
+	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
+	"unmarshall/scaling-recommender/internal/pricing"
 
 	"github.com/samber/lo"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/rand"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +34,8 @@ type recommender struct {
 	nc                     virtualenv.NodeControl
 	pc                     virtualenv.PodControl
 	ec                     virtualenv.EventControl
-	refNodes               []*corev1.Node
+	pa                     pricing.InstancePricingAccess
+	refNodes               []corev1.Node
 	instanceTypeCostRatios map[string]float64
 	state                  simulationState
 	logger                 slog.Logger
@@ -76,22 +76,36 @@ type simulationState struct {
 	eligibleNodePools map[string]api.NodePool
 }
 
-func NewRecommender(vcp virtualenv.ControlPlane, refNodes []*corev1.Node, instanceTypeCostRatios map[string]float64, logger slog.Logger) scaler.Recommender {
-	return &recommender{
-		nc:                     vcp.NodeControl(),
-		pc:                     vcp.PodControl(),
-		ec:                     vcp.EventControl(),
-		refNodes:               refNodes,
-		instanceTypeCostRatios: instanceTypeCostRatios,
-		logger:                 logger,
+func (s *simulationState) updateEligibleNodePools(recommendation *scaler.ScaleUpRecommendation) {
+	np, ok := s.eligibleNodePools[recommendation.NodePoolName]
+	if !ok {
+		return
+	}
+	np.Current += recommendation.IncrementBy
+	if np.Current == np.Max {
+		delete(s.eligibleNodePools, recommendation.NodePoolName)
+	} else {
+		s.eligibleNodePools[recommendation.NodePoolName] = np
 	}
 }
 
-func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest) scaler.Result {
+func NewRecommender(vcp virtualenv.ControlPlane, refNodes []corev1.Node, pa pricing.InstancePricingAccess) scaler.Recommender {
+	return &recommender{
+		nc:       vcp.NodeControl(),
+		pc:       vcp.PodControl(),
+		ec:       vcp.EventControl(),
+		pa:       pa,
+		refNodes: refNodes,
+	}
+}
+
+func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) scaler.Result {
 	var (
 		recommendations []scaler.ScaleUpRecommendation
 		runNumber       int
 	)
+	r.logger = logger
+	r.instanceTypeCostRatios = util.ComputeCostRatiosForInstanceTypes(r.pa, simReq.NodePools)
 	r.initializeSimulationState(simReq)
 	for {
 		runNumber++
@@ -112,7 +126,7 @@ func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest) sca
 			break
 		}
 		recommendation := createScaleUpRecommendationFromResult(*winnerRunResult)
-		if err := r.syncWinningResult(ctx, recommendation, winnerRunResult); err != nil {
+		if err := r.syncWinningResult(ctx, &recommendation, winnerRunResult); err != nil {
 			return scaler.ErrorResult(err)
 		}
 		r.logger.Info("For scale-up recommender", "runNumber", runNumber, "winning-score", recommendation)
@@ -135,9 +149,9 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) {
 	r.state.existingNodes = nodes
 }
 
-func (r *recommender) getReferenceNode(instanceType string) *corev1.Node {
-	return lo.Filter(r.refNodes, func(n *corev1.Node, _ int) bool {
-		return util.GetInstanceType(n) == instanceType
+func (r *recommender) getReferenceNode(instanceType string) corev1.Node {
+	return lo.Filter(r.refNodes, func(n corev1.Node, _ int) bool {
+		return util.GetInstanceType(&n) == instanceType
 	})[0]
 }
 
@@ -205,7 +219,8 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 				return
 			}
 		}
-		node, err = util.ConstructNodeForSimRun(r.getReferenceNode(nodePool.InstanceType), nodePool.Name, zone, runRef)
+		refNode := r.getReferenceNode(nodePool.InstanceType)
+		node, err = util.ConstructNodeForSimRun(&refNode, nodePool.Name, zone, runRef)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
@@ -267,7 +282,7 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 	}
 
 	// create copy of all scheduled pods
-	clonedScheduledPods := make([]corev1.Pod, 0, len(r.state.scheduledPods))
+	clonedScheduledPods := make([]*corev1.Pod, 0, len(r.state.scheduledPods))
 	for _, pod := range r.state.scheduledPods {
 		podCopy := pod.DeepCopy()
 		podCopy.Name = fromOriginalResourceName(podCopy.Name, runRef.B)
@@ -287,7 +302,7 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 			podCopy.Spec.TopologySpreadConstraints = updatedTSC
 		}
 		podCopy.Spec.NodeName = fromOriginalResourceName(podCopy.Spec.NodeName, runRef.B)
-		clonedScheduledPods = append(clonedScheduledPods, *podCopy)
+		clonedScheduledPods = append(clonedScheduledPods, podCopy)
 	}
 	if err := r.pc.CreatePods(ctx, clonedScheduledPods...); err != nil {
 		return err
@@ -303,8 +318,8 @@ func (r *recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, 
 	return r.pc.DeletePodsMatchingLabels(ctx, util.AsMap(runRef))
 }
 
-func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef lo.Tuple2[string, string]) ([]corev1.Pod, error) {
-	unscheduledPods := make([]corev1.Pod, 0, len(r.state.unscheduledPods))
+func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef lo.Tuple2[string, string]) ([]*corev1.Pod, error) {
+	unscheduledPods := make([]*corev1.Pod, 0, len(r.state.unscheduledPods))
 	for _, pod := range r.state.unscheduledPods {
 		podCopy := pod.DeepCopy()
 		podCopy.Name = fromOriginalResourceName(podCopy.Name, runRef.B)
@@ -324,7 +339,7 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 			podCopy.Spec.TopologySpreadConstraints = updatedTSC
 		}
 		podCopy.Spec.SchedulerName = common.BinPackingSchedulerName
-		unscheduledPods = append(unscheduledPods, *podCopy)
+		unscheduledPods = append(unscheduledPods, podCopy)
 	}
 	return unscheduledPods, r.pc.CreatePods(ctx, unscheduledPods...)
 }
@@ -366,85 +381,70 @@ func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeNam
 	}
 }
 
-func computeUnscheduledRatio(candidatePods []corev1.Pod) float64 {
-	var totalAssignedPods int
-	for _, pod := range candidatePods {
-		if pod.Spec.NodeName != "" {
-			totalAssignedPods++
-		}
+func (r *recommender) syncWinningResult(ctx context.Context, recommendation *scaler.ScaleUpRecommendation, winningRunResult *runResult) error {
+	startTime := time.Now()
+	defer func() {
+		r.logger.Info("syncWinningResult for nodePool completed", "nodePool", recommendation.NodePoolName, "duration", time.Since(startTime).Seconds())
+	}()
+	scheduledPodNames, err := r.syncClusterWithWinningResult(ctx, winningRunResult)
+	if err != nil {
+		return err
 	}
-	return float64(len(candidatePods)-totalAssignedPods) / float64(len(candidatePods))
+	return r.syncRecommenderStateWithWinningResult(ctx, recommendation, winningRunResult.nodeName, scheduledPodNames)
 }
 
-func computeWasteRatio(node *corev1.Node, candidatePods []corev1.Pod) float64 {
-	var (
-		targetNodeAssignedPods []corev1.Pod
-		totalMemoryConsumed    int64
-	)
-	for _, pod := range candidatePods {
-		if pod.Spec.NodeName == node.Name {
-			targetNodeAssignedPods = append(targetNodeAssignedPods, pod)
-			for _, container := range pod.Spec.Containers {
-				totalMemoryConsumed += container.Resources.Requests.Memory().MilliValue()
+func (r *recommender) syncClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
+	refNode := r.getReferenceNode(winningRunResult.instanceType)
+	node, err := util.ConstructNodeFromRefNode(&refNode, winningRunResult.nodePoolName, winningRunResult.zone)
+	if err != nil {
+		return nil, err
+	}
+	node.Name = winningRunResult.nodeName
+	var originalPods []*corev1.Pod
+	var scheduledPods []*corev1.Pod
+	for nodeName, simPodObjectKeys := range winningRunResult.nodeToPods {
+		for _, simPodObjectKey := range simPodObjectKeys {
+			podName := toOriginalResourceName(simPodObjectKey.Name)
+			pod, ok := r.state.originalUnscheduledPods[podName]
+			if !ok {
+				return nil, fmt.Errorf("unexpected error, pod: %s not found in the original pods collection", podName)
 			}
-			slog.Info("NodPodAssignment: ", "pod", pod.Name, "node", pod.Spec.NodeName, "memory", pod.Spec.Containers[0].Resources.Requests.Memory().MilliValue())
+			originalPods = append(originalPods, pod)
+			podCopy := pod.DeepCopy()
+			podCopy.Spec.NodeName = toOriginalResourceName(nodeName)
+			podCopy.ObjectMeta.ResourceVersion = ""
+			podCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
+			scheduledPods = append(scheduledPods, podCopy)
 		}
 	}
-	totalMemoryCapacity := node.Status.Capacity.Memory().MilliValue()
-	return float64(totalMemoryCapacity-totalMemoryConsumed) / float64(totalMemoryCapacity)
+	if err = r.pc.CreatePods(ctx, scheduledPods...); err != nil {
+		return nil, err
+	}
+	if err = r.nc.CreateNodes(ctx, node); err != nil {
+		return nil, err
+	}
+	if err = r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, node); err != nil {
+		return nil, err
+	}
+	return util.GetPodNames(scheduledPods), nil
 }
 
-func getWinningRunResult(results []*runResult) *runResult {
-	if len(results) == 0 {
-		return nil
+func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context, recommendation *scaler.ScaleUpRecommendation, winningNodeName string, scheduledPodNames []string) error {
+	winnerNode, err := r.nc.GetNode(ctx, types.NamespacedName{Name: winningNodeName, Namespace: common.DefaultNamespace})
+	if err != nil {
+		return err
 	}
-	var winner *runResult
-	minScore := math.MaxFloat64
-	var winningRunResults []*runResult
-	for _, v := range results {
-		if v.nodeScore.cumulativeScore < minScore {
-			winner = v
-			minScore = v.nodeScore.cumulativeScore
-		}
+	r.state.existingNodes = append(r.state.existingNodes, winnerNode)
+	scheduledPods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames...)
+	if err != nil {
+		return err
 	}
-	for _, v := range results {
-		if v.nodeScore.cumulativeScore == minScore {
-			winningRunResults = append(winningRunResults, v)
-		}
+	for _, pod := range scheduledPods {
+		r.state.scheduledPods = append(r.state.scheduledPods, &pod)
+		r.state.unscheduledPods = slices.DeleteFunc(r.state.unscheduledPods, func(p *corev1.Pod) bool {
+			return p.Name == pod.Name
+		})
 	}
-	rand.Seed(uint64(time.Now().UnixNano()))
-	winningIndex := rand.Intn(len(winningRunResults))
-	winner = winningRunResults[winningIndex]
-	return winner
-}
-
-func createScaleUpRecommendationFromResult(result runResult) scaler.ScaleUpRecommendation {
-	return scaler.ScaleUpRecommendation{
-		Zone:         result.zone,
-		NodePoolName: result.nodePoolName,
-		IncrementBy:  int32(1),
-		InstanceType: result.instanceType,
-	}
-}
-
-func appendScaleUpRecommendation(recommendations []scaler.ScaleUpRecommendation, recommendation scaler.ScaleUpRecommendation) {
-	var found bool
-	for i, r := range recommendations {
-		if r.NodePoolName == recommendation.NodePoolName {
-			r.IncrementBy += recommendation.IncrementBy
-			found = true
-			recommendations[i] = r
-		}
-	}
-	if !found {
-		recommendations = append(recommendations, recommendation)
-	}
-}
-
-func fromOriginalResourceName(name, suffix string) string {
-	return fmt.Sprintf(resourceNameFormat, name, suffix)
-}
-
-func toOriginalResourceName(simResName string) string {
-	return strings.Split(simResName, "-simrun-")[0]
+	r.state.updateEligibleNodePools(recommendation)
+	return nil
 }

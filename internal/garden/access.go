@@ -21,6 +21,7 @@ type Access interface {
 	GetShoot(ctx context.Context, shootCoord common.ShootCoordinate) (*gardencorev1beta1.Shoot, error)
 	SyncReferenceNodes(ctx context.Context, shootCoord common.ShootCoordinate) error
 	GetReferenceNode(instanceType string) (*corev1.Node, bool)
+	GetAllReferenceNodes() []corev1.Node
 }
 
 func NewAccess(garden string) (Access, error) {
@@ -79,6 +80,10 @@ func (a *access) GetReferenceNode(instanceType string) (*corev1.Node, bool) {
 		}
 	}
 	return nil, false
+}
+
+func (a *access) GetAllReferenceNodes() []corev1.Node {
+	return a.referenceNodes
 }
 
 func (a *access) createShootAccess(ctx context.Context, shootCoord common.ShootCoordinate) (ShootAccess, error) {

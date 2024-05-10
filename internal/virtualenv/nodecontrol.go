@@ -3,6 +3,7 @@ package virtualenv
 import (
 	"context"
 	"errors"
+	"k8s.io/apimachinery/pkg/types"
 	"log/slog"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +16,8 @@ import (
 type NodeControl interface {
 	// CreateNodes creates new nodes in the in-memory controlPlane from the given node specs.
 	CreateNodes(ctx context.Context, nodes ...*corev1.Node) error
+	// GetNode return the node matching object key
+	GetNode(ctx context.Context, objectKey types.NamespacedName) (*corev1.Node, error)
 	// ListNodes returns the current nodes of the in-memory controlPlane.
 	ListNodes(ctx context.Context, filters ...common.NodeFilter) ([]corev1.Node, error)
 	// TaintNodes taints the given nodes with the given taint.
@@ -47,6 +50,12 @@ func (n nodeControl) CreateNodes(ctx context.Context, nodes ...*corev1.Node) err
 		errs = errors.Join(errs, n.client.Create(ctx, node))
 	}
 	return errs
+}
+
+func (n nodeControl) GetNode(ctx context.Context, objectKey types.NamespacedName) (*corev1.Node, error) {
+	node := corev1.Node{}
+	err := n.client.Get(ctx, objectKey, &node)
+	return &node, err
 }
 
 func (n nodeControl) ListNodes(ctx context.Context, filters ...common.NodeFilter) ([]corev1.Node, error) {
