@@ -241,7 +241,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		if _, _, err = util.WaitForAndRecordPodSchedulingEvents(ctx, r.ec, deployTime, unscheduledPods, 10*time.Second); err != nil {
+		if _, _, err = r.ec.GetPodSchedulingEvents(ctx, deployTime, unscheduledPods, 10*time.Second); err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}

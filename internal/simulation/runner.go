@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"unmarshall/scaling-recommender/internal/scaler/factory"
 
 	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/garden"
@@ -41,7 +42,7 @@ func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPla
 		virtualControlPlane: vControlPlane,
 		pricingAccess:       pricingAccess,
 		targetShootCoord:    targetShootCoord,
-		recommenderFactory:  scaler.NewFactory(gardenAccess, vControlPlane, pricingAccess),
+		recommenderFactory:  factory.New(gardenAccess, vControlPlane, pricingAccess),
 	}
 }
 

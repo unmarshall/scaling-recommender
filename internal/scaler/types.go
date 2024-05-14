@@ -6,12 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"unmarshall/scaling-recommender/internal/garden"
-	"unmarshall/scaling-recommender/internal/scaler/scaleup"
-
 	"unmarshall/scaling-recommender/api"
-	"unmarshall/scaling-recommender/internal/pricing"
-	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
 type AlgoVariant string
@@ -57,22 +52,4 @@ type Factory interface {
 
 type Recommender interface {
 	Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) Result
-}
-
-type factory struct {
-	algos map[AlgoVariant]Recommender
-}
-
-func NewFactory(ga garden.Access, vcp virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) Factory {
-	algos := make(map[AlgoVariant]Recommender)
-	// Register all scaling algorithms
-	algos[MultiDimensionScoringScaleUpAlgo] = scaleup.NewRecommender(vcp, ga.GetAllReferenceNodes(), pricingAccess)
-	//algos[DescendingCostScaleDownAlgo] = scaledown.NewDescendingCostRecommender(vcp.NodeControl(), vcp.PodControl(), vcp.EventControl(), pricingAccess)
-	return &factory{
-		algos: algos,
-	}
-}
-
-func (f *factory) GetRecommender(variant AlgoVariant) Recommender {
-	return f.algos[variant]
 }
