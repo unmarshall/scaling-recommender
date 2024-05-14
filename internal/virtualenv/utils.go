@@ -18,6 +18,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/scheme"
+	"unmarshall/scaling-recommender/internal/util"
 )
 
 func createKubeconfigFileForRestConfig(restConfig *rest.Config) ([]byte, error) {
@@ -52,16 +53,11 @@ func createKubeconfigFileForRestConfig(restConfig *rest.Config) ([]byte, error) 
 }
 
 func loadSchedulerConfig() (*config.KubeSchedulerConfiguration, error) {
-	currentDir, err := os.Getwd()
+	configPath, err := util.GetAbsoluteConfigPath("internal", "virtualenv", "assets", "scheduler-config.yaml")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+		return nil, fmt.Errorf("failed to get absolute path for config file: %w", err)
 	}
-	currDirAbsPath, err := filepath.Abs(currentDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path for current directory: %w", err)
-	}
-	configPath := filepath.Join(currDirAbsPath, "virtualenv", "assets", "scheduler-config.yaml")
-	configBytes, err := os.ReadFile(configPath)
+	configBytes, err := os.ReadFile(*configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read kube scheduler config file: %s: %w", configPath, err)
 	}

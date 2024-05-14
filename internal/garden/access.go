@@ -65,7 +65,7 @@ func (a *access) SyncReferenceNodes(ctx context.Context, shootCoord common.Shoot
 	if err != nil {
 		return err
 	}
-	nodes, err := sa.ListNodes(ctx, nil)
+	nodes, err := sa.ListNodes(ctx)
 	if err != nil {
 		return err
 	}

@@ -106,7 +106,7 @@ func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest, log
 		runNumber       int
 	)
 	r.logger = logger
-	r.instanceTypeCostRatios = util.ComputeCostRatiosForInstanceTypes(r.pa, simReq.NodePools)
+	r.instanceTypeCostRatios = r.pa.ComputeCostRatiosForInstanceTypes(simReq.NodePools)
 	r.initializeSimulationState(simReq)
 	for {
 		runNumber++

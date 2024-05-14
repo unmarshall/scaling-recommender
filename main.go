@@ -31,6 +31,7 @@ func main() {
 		slog.Error("failed to parse command line arguments", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("starting scaling recommender", "appConfig", appConfig)
 
 	gardenAccess := initializeGardenAccess(ctx, appConfig)
 	vCluster := startVirtualCluster(ctx, appConfig)
@@ -61,11 +62,13 @@ func startVirtualCluster(ctx context.Context, appConfig common.AppConfig) virtua
 }
 
 func initializeGardenAccess(ctx context.Context, appConfig common.AppConfig) garden.Access {
+	slog.Info("initializing garden access ...", "garden", appConfig.Garden)
 	gardenAccess, err := garden.NewAccess(appConfig.Garden)
 	if err != nil {
 		slog.Error("failed to create garden access", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("syncing reference nodes from shoot", "garden", appConfig.Garden, "referenceShoot", appConfig.ReferenceShoot)
 	if err = gardenAccess.SyncReferenceNodes(ctx, appConfig.ReferenceShoot); err != nil {
 		slog.Error("failed to sync reference nodes", "referenceShoot", appConfig.ReferenceShoot, "error", err)
 		os.Exit(1)
@@ -95,7 +98,7 @@ func setupSignalHandler() context.Context {
 
 func parseCmdArgs() (common.AppConfig, error) {
 	config := common.AppConfig{
-		ReferenceShoot: common.ShootCoordinate{},
+		TargetShoot: &common.ShootCoordinate{},
 	}
 	args := os.Args[1:]
 	fs := flag.CommandLine

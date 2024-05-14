@@ -1,17 +1,18 @@
 package pricing
 
 import (
-	"errors"
 	"log/slog"
 	"os"
-	"path"
-	"runtime"
 
+	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/util/json"
+	"unmarshall/scaling-recommender/api"
+	"unmarshall/scaling-recommender/internal/util"
 )
 
 type InstancePricingAccess interface {
 	Get3YearReservedPricing(instanceType string) float64
+	ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64
 }
 
 func NewInstancePricingAccess() (InstancePricingAccess, error) {
@@ -37,15 +38,25 @@ func (a *access) Get3YearReservedPricing(instanceType string) float64 {
 	return price.EDPPrice.Reserved3Year
 }
 
+func (a *access) ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64 {
+	instanceTypeCostRatios := make(map[string]float64)
+	totalCost := lo.Reduce[api.NodePool, float64](nodePools, func(totalCost float64, np api.NodePool, _ int) float64 {
+		return totalCost + a.Get3YearReservedPricing(np.InstanceType)
+	}, 0.0)
+	for _, np := range nodePools {
+		price := a.Get3YearReservedPricing(np.InstanceType)
+		instanceTypeCostRatios[np.InstanceType] = price / totalCost
+	}
+	return instanceTypeCostRatios
+}
+
 func loadInstancePricing() (map[string]instancePricing, error) {
 	var allPricing allInstancePricing
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		return nil, errors.New("no caller information")
+	filePath, err := util.GetAbsoluteConfigPath("internal", "pricing", "assets", "aws_pricing_eu-west-1.json")
+	if err != nil {
+		return nil, err
 	}
-	dirName := path.Dir(filename)
-	filePath := path.Join(dirName, "aws_pricing_eu-west-1.json")
-	content, err := os.ReadFile(filePath)
+	content, err := os.ReadFile(*filePath)
 	if err != nil {
 		return nil, err
 	}
