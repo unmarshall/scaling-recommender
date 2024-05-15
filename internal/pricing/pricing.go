@@ -26,7 +26,7 @@ func NewInstancePricingAccess() (InstancePricingAccess, error) {
 }
 
 type access struct {
-	pricingMap map[string]instancePricing
+	pricingMap map[string]InstancePricing
 }
 
 func (a *access) Get3YearReservedPricing(instanceType string) float64 {
@@ -35,7 +35,7 @@ func (a *access) Get3YearReservedPricing(instanceType string) float64 {
 		slog.Error("instance type not found in pricing map", "instanceType", instanceType)
 		return 0
 	}
-	return price.EDPPrice.Reserved3Year
+	return float64(price.EDPPrice.Reserved3Year)
 }
 
 func (a *access) ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64 {
@@ -50,8 +50,8 @@ func (a *access) ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map
 	return instanceTypeCostRatios
 }
 
-func loadInstancePricing() (map[string]instancePricing, error) {
-	var allPricing allInstancePricing
+func loadInstancePricing() (map[string]InstancePricing, error) {
+	var allPricing AllInstancePricing
 	filePath, err := util.GetAbsoluteConfigPath("internal", "pricing", "assets", "aws_pricing_eu-west-1.json")
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func loadInstancePricing() (map[string]instancePricing, error) {
 		return nil, err
 	}
 
-	pricingMap := make(map[string]instancePricing)
+	pricingMap := make(map[string]InstancePricing)
 	for _, pricing := range allPricing.Results {
 		pricingMap[pricing.InstanceType] = pricing
 	}

@@ -1,18 +1,35 @@
 package pricing
 
-type instancePricing struct {
+import "strconv"
+
+type InstancePricing struct {
 	InstanceType string       `json:"instance_type"`
-	VCpu         float64      `json:"vcpu"`
-	Memory       float64      `json:"memory"`
-	EDPPrice     priceDetails `json:"edp_price"`
+	VCpu         Float        `json:"vcpu"`
+	Memory       Float        `json:"memory"`
+	EDPPrice     PriceDetails `json:"edp_price"`
 }
 
-type priceDetails struct {
-	PayAsYouGo    float64 `json:"pay_as_you_go"`
-	Reserved1Year float64 `json:"ri_1_year"`
-	Reserved3Year float64 `json:"ri_3_years"`
+type PriceDetails struct {
+	PayAsYouGo    Float `json:"pay_as_you_go"`
+	Reserved1Year Float `json:"ri_1_year"`
+	Reserved3Year Float `json:"ri_3_years"`
 }
 
-type allInstancePricing struct {
-	Results []instancePricing `json:"results"`
+type AllInstancePricing struct {
+	Results []InstancePricing `json:"results"`
+}
+
+type Float float64
+
+func (f *Float) UnmarshalJSON(b []byte) error {
+	if string(b) == "\"NA\"" || len(b) == 0 {
+		*f = Float(0)
+		return nil
+	}
+	val, err := strconv.ParseFloat(string(b), 64)
+	if err != nil {
+		return err
+	}
+	*f = Float(val)
+	return nil
 }
