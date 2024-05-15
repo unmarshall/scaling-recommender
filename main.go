@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,7 +14,7 @@ import (
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
-	"unmarshall/scaling-recommender/internal/common"
+	"unmarshall/scaling-recommender/internal/app"
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/simulation"
@@ -21,6 +22,7 @@ import (
 )
 
 func main() {
+	defer app.OnExit()
 	utilruntime.Must(gardencorev1beta1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(seedmanagementv1alpha1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(machinev1alpha1.AddToScheme(scheme.Scheme))
@@ -28,30 +30,27 @@ func main() {
 
 	appConfig, err := parseCmdArgs()
 	if err != nil {
-		slog.Error("failed to parse command line arguments", "error", err)
-		os.Exit(1)
+		app.ExitAppWithError(1, fmt.Errorf("failed to parse command line arguments: %w", err))
 	}
-	slog.Info("starting scaling recommender", "appConfig", appConfig)
 
+	slog.Info("starting scaling recommender environment", "appConfig", appConfig)
 	gardenAccess := initializeGardenAccess(ctx, appConfig)
 	vCluster := startVirtualCluster(ctx, appConfig)
+	defer func() {
+		slog.Info("shutting down virtual cluster...")
+		if err = vCluster.Stop(); err != nil {
+			slog.Error("failed to stop virtual cluster", "error", err)
+		}
+	}()
 	pricingAccess, err := pricing.NewInstancePricingAccess()
 	if err != nil {
-		slog.Error("failed to create instance pricing access", "error", err)
-		os.Exit(1)
+		app.ExitAppWithError(1, fmt.Errorf("failed to create instance pricing access: %w", err))
 	}
-	scenarioExecutorEngine := startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, appConfig.TargetShoot)
-
+	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, appConfig.TargetShoot)
 	<-ctx.Done()
-	slog.Info("shutting down virtual cluster...")
-	if err := vCluster.Stop(); err != nil {
-		slog.Error("failed to stop virtual cluster", "error", err)
-	}
-	slog.Info("shutting down scenario executor...")
-	scenarioExecutorEngine.Shutdown()
 }
 
-func startVirtualCluster(ctx context.Context, appConfig common.AppConfig) virtualenv.ControlPlane {
+func startVirtualCluster(ctx context.Context, appConfig app.Config) virtualenv.ControlPlane {
 	vCluster := virtualenv.NewControlPlane(appConfig.BinaryAssetsPath)
 	if err := vCluster.Start(ctx); err != nil {
 		slog.Error("failed to start virtual cluster", "error", err)
@@ -61,7 +60,7 @@ func startVirtualCluster(ctx context.Context, appConfig common.AppConfig) virtua
 	return vCluster
 }
 
-func initializeGardenAccess(ctx context.Context, appConfig common.AppConfig) garden.Access {
+func initializeGardenAccess(ctx context.Context, appConfig app.Config) garden.Access {
 	slog.Info("initializing garden access ...", "garden", appConfig.Garden)
 	gardenAccess, err := garden.NewAccess(appConfig.Garden)
 	if err != nil {
@@ -76,10 +75,13 @@ func initializeGardenAccess(ctx context.Context, appConfig common.AppConfig) gar
 	return gardenAccess
 }
 
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinate) simulation.Engine {
+func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate) simulation.Engine {
 	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord)
 	slog.Info("Triggering start of scenario executor...")
-	go scenarioExecutorEngine.Run()
+	go func() {
+		defer scenarioExecutorEngine.Shutdown()
+		scenarioExecutorEngine.Run()
+	}()
 	return scenarioExecutorEngine
 }
 
@@ -96,9 +98,9 @@ func setupSignalHandler() context.Context {
 	return ctx
 }
 
-func parseCmdArgs() (common.AppConfig, error) {
-	config := common.AppConfig{
-		TargetShoot: &common.ShootCoordinate{},
+func parseCmdArgs() (app.Config, error) {
+	config := app.Config{
+		TargetShoot: &app.ShootCoordinate{},
 	}
 	args := os.Args[1:]
 	fs := flag.CommandLine

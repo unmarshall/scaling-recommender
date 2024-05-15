@@ -2,12 +2,13 @@ package simulation
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
+
+	"unmarshall/scaling-recommender/internal/app"
 	"unmarshall/scaling-recommender/internal/scaler/factory"
 
-	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
@@ -21,7 +22,7 @@ type Engine interface {
 	VirtualControlPlane() virtualenv.ControlPlane
 	PricingAccess() pricing.InstancePricingAccess
 	RecommenderFactory() scaler.Factory
-	TargetShootCoordinate() common.ShootCoordinate
+	TargetShootCoordinate() app.ShootCoordinate
 }
 
 type engine struct {
@@ -29,11 +30,11 @@ type engine struct {
 	gardenAccess        garden.Access
 	virtualControlPlane virtualenv.ControlPlane
 	pricingAccess       pricing.InstancePricingAccess
-	targetShootCoord    *common.ShootCoordinate
+	targetShootCoord    *app.ShootCoordinate
 	recommenderFactory  scaler.Factory
 }
 
-func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *common.ShootCoordinate) Engine {
+func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate) Engine {
 	return &engine{
 		server: http.Server{
 			Addr: ":8080",
@@ -49,8 +50,7 @@ func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPla
 func (e *engine) Run() {
 	e.server.Handler = e.routes()
 	if err := e.server.ListenAndServe(); err != nil {
-		slog.Error("error starting scenario http server", "error", err)
-		os.Exit(1)
+		app.ExitAppWithError(1, fmt.Errorf("error starting scenario http server: %w", err))
 	}
 }
 
@@ -76,7 +76,7 @@ func (e *engine) RecommenderFactory() scaler.Factory {
 	return e.recommenderFactory
 }
 
-func (e *engine) TargetShootCoordinate() common.ShootCoordinate {
+func (e *engine) TargetShootCoordinate() app.ShootCoordinate {
 	return *e.targetShootCoord
 }
 

@@ -10,16 +10,16 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"unmarshall/scaling-recommender/internal/common"
+	"unmarshall/scaling-recommender/internal/app"
 	"unmarshall/scaling-recommender/internal/util"
 )
 
 const defaultAdminKubeConfigExpirationSeconds = 86400
 
 type Access interface {
-	GetShootAccess(ctx context.Context, shootCoord common.ShootCoordinate) (ShootAccess, error)
-	GetShoot(ctx context.Context, shootCoord common.ShootCoordinate) (*gardencorev1beta1.Shoot, error)
-	SyncReferenceNodes(ctx context.Context, shootCoord common.ShootCoordinate) error
+	GetShootAccess(ctx context.Context, shootCoord app.ShootCoordinate) (ShootAccess, error)
+	GetShoot(ctx context.Context, shootCoord app.ShootCoordinate) (*gardencorev1beta1.Shoot, error)
+	SyncReferenceNodes(ctx context.Context, shootCoord app.ShootCoordinate) error
 	GetReferenceNode(instanceType string) (*corev1.Node, bool)
 	GetAllReferenceNodes() []corev1.Node
 }
@@ -32,18 +32,18 @@ func NewAccess(garden string) (Access, error) {
 	return &access{
 		garden:        garden,
 		vGardenClient: gardenClient,
-		shootAccesses: make(map[common.ShootCoordinate]ShootAccess),
+		shootAccesses: make(map[app.ShootCoordinate]ShootAccess),
 	}, nil
 }
 
 type access struct {
 	garden         string
 	vGardenClient  client.Client
-	shootAccesses  map[common.ShootCoordinate]ShootAccess
+	shootAccesses  map[app.ShootCoordinate]ShootAccess
 	referenceNodes []corev1.Node
 }
 
-func (a *access) GetShootAccess(ctx context.Context, shootCoord common.ShootCoordinate) (ShootAccess, error) {
+func (a *access) GetShootAccess(ctx context.Context, shootCoord app.ShootCoordinate) (ShootAccess, error) {
 	if sa, found := a.findShootAccess(shootCoord); found {
 		return sa, nil
 	}
@@ -51,7 +51,7 @@ func (a *access) GetShootAccess(ctx context.Context, shootCoord common.ShootCoor
 	return a.createShootAccess(ctx, shootCoord)
 }
 
-func (a *access) GetShoot(ctx context.Context, shootCoord common.ShootCoordinate) (*gardencorev1beta1.Shoot, error) {
+func (a *access) GetShoot(ctx context.Context, shootCoord app.ShootCoordinate) (*gardencorev1beta1.Shoot, error) {
 	shootNs := shootCoord.GetNamespace()
 	shoot := &gardencorev1beta1.Shoot{}
 	if err := a.vGardenClient.Get(ctx, client.ObjectKey{Name: shootCoord.Name, Namespace: shootNs}, shoot); err != nil {
@@ -60,7 +60,7 @@ func (a *access) GetShoot(ctx context.Context, shootCoord common.ShootCoordinate
 	return shoot, nil
 }
 
-func (a *access) SyncReferenceNodes(ctx context.Context, shootCoord common.ShootCoordinate) error {
+func (a *access) SyncReferenceNodes(ctx context.Context, shootCoord app.ShootCoordinate) error {
 	sa, err := a.GetShootAccess(ctx, shootCoord)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func (a *access) GetAllReferenceNodes() []corev1.Node {
 	return a.referenceNodes
 }
 
-func (a *access) createShootAccess(ctx context.Context, shootCoord common.ShootCoordinate) (ShootAccess, error) {
+func (a *access) createShootAccess(ctx context.Context, shootCoord app.ShootCoordinate) (ShootAccess, error) {
 	shoot, err := a.GetShoot(ctx, shootCoord)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (a *access) createShootAccess(ctx context.Context, shootCoord common.ShootC
 	return sa, nil
 }
 
-func (a *access) findShootAccess(shootCoord common.ShootCoordinate) (ShootAccess, bool) {
+func (a *access) findShootAccess(shootCoord app.ShootCoordinate) (ShootAccess, bool) {
 	for coord, sa := range a.shootAccesses {
 		if coord.Name == shootCoord.Name && coord.Project == shootCoord.Project {
 			// check if the kubeconfig is still valid
