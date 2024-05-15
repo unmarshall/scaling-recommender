@@ -2,8 +2,9 @@ package util
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"slices"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"unmarshall/scaling-recommender/api"
 
 	"github.com/samber/lo"
@@ -85,16 +86,17 @@ func evaluatePodFilters(pod *corev1.Pod, filters []common.PodFilter) bool {
 func ConstructPodsFromPodInfos(podInfos []api.PodInfo, sortOrder string) []*corev1.Pod {
 	pods := make([]*corev1.Pod, 0, len(podInfos))
 	for _, podInfo := range podInfos {
-		pod := NewPodBuilder().
+		podBuilder := NewPodBuilder().
 			Name(podInfo.Name).
 			SchedulerName(common.BinPackingSchedulerName).
 			Labels(podInfo.Labels).
 			ResourceRequests(podInfo.Requests).
 			TopologySpreadConstraints(podInfo.TopologySpreadConstraints).
-			Tolerations(podInfo.Tolerations).
-			ScheduledOn(podInfo.ScheduledOn.Name).
-			Build()
-		pods = append(pods, pod)
+			Tolerations(podInfo.Tolerations)
+		if podInfo.ScheduledOn != nil {
+			podBuilder.ScheduledOn(podInfo.ScheduledOn.Name)
+		}
+		pods = append(pods, podBuilder.Build())
 	}
 	sortPods(pods, sortOrder)
 	return pods

@@ -177,9 +177,11 @@ func (c *controlPlane) startScheduler(ctx context.Context, restConfig *rest.Conf
 	}
 	c.scheduler = s
 	sac.EventBroadcaster.StartRecordingToSink(ctx.Done())
-	defer sac.EventBroadcaster.Shutdown()
 	startInformersAndWaitForSync(ctx, sac, s)
-	go s.Run(ctx)
+	go func() {
+		defer sac.EventBroadcaster.Shutdown()
+		s.Run(ctx)
+	}()
 	slog.Info("in-memory kube-scheduler started successfully")
 	return nil
 }
@@ -199,17 +201,3 @@ func startInformersAndWaitForSync(ctx context.Context, sac *schedulerappconfig.C
 		slog.Error("waiting for kube-scheduler handlers to sync", "error", err)
 	}
 }
-
-/*
-	Request {
-	nodePoolSpec: [] NodePool {
-	  "zones": "zone-a",
-	  "instanceType": "n1-standard-2",
-	  "maxCount": 3
-		}
-  	}
-	PodSpec: {
-	 "memory": 1,
-	 "count": 1,
-	}
-*/

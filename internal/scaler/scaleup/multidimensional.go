@@ -150,10 +150,14 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) {
 	r.state.existingNodes = nodes
 }
 
-func (r *recommender) getReferenceNode(instanceType string) corev1.Node {
-	return lo.Filter(r.refNodes, func(n corev1.Node, _ int) bool {
+func (r *recommender) getReferenceNode(instanceType string) (*corev1.Node, error) {
+	filteredNodes := lo.Filter(r.refNodes, func(n corev1.Node, _ int) bool {
 		return util.GetInstanceType(&n) == instanceType
-	})[0]
+	})
+	if len(filteredNodes) == 0 {
+		return nil, fmt.Errorf("no reference node found for instance type: %s", instanceType)
+	}
+	return &filteredNodes[0], nil
 }
 
 func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult {
@@ -220,8 +224,12 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 				return
 			}
 		}
-		refNode := r.getReferenceNode(nodePool.InstanceType)
-		node, err = util.ConstructNodeForSimRun(&refNode, nodePool.Name, zone, runRef)
+		refNode, err := r.getReferenceNode(nodePool.InstanceType)
+		if err != nil {
+			resultCh <- errorRunResult(err)
+			return
+		}
+		node, err = util.ConstructNodeForSimRun(refNode, nodePool.Name, zone, runRef)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
@@ -287,6 +295,9 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 	for _, pod := range r.state.scheduledPods {
 		podCopy := pod.DeepCopy()
 		podCopy.Name = fromOriginalResourceName(podCopy.Name, runRef.B)
+		if podCopy.Labels == nil {
+			podCopy.Labels = make(map[string]string)
+		}
 		podCopy.Labels[runRef.A] = runRef.B
 		podCopy.ObjectMeta.UID = ""
 		podCopy.ObjectMeta.ResourceVersion = ""
@@ -324,6 +335,9 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 	for _, pod := range r.state.unscheduledPods {
 		podCopy := pod.DeepCopy()
 		podCopy.Name = fromOriginalResourceName(podCopy.Name, runRef.B)
+		if podCopy.Labels == nil {
+			podCopy.Labels = make(map[string]string)
+		}
 		podCopy.Labels[runRef.A] = runRef.B
 		podCopy.ObjectMeta.UID = ""
 		podCopy.ObjectMeta.ResourceVersion = ""
@@ -395,8 +409,11 @@ func (r *recommender) syncWinningResult(ctx context.Context, recommendation *api
 }
 
 func (r *recommender) syncClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
-	refNode := r.getReferenceNode(winningRunResult.instanceType)
-	node, err := util.ConstructNodeFromRefNode(&refNode, winningRunResult.nodePoolName, winningRunResult.zone)
+	refNode, err := r.getReferenceNode(winningRunResult.instanceType)
+	if err != nil {
+		return nil, err
+	}
+	node, err := util.ConstructNodeFromRefNode(refNode, winningRunResult.nodePoolName, winningRunResult.zone)
 	if err != nil {
 		return nil, err
 	}

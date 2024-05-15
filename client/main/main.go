@@ -2,14 +2,16 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"net/http"
 	"os"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"unmarshall/scaling-recommender/api"
 )
 
@@ -49,7 +51,7 @@ func main() {
 		},
 	}
 
-	reqURL := "https://localhost:8080/simulation/"
+	reqURL := "http://localhost:8080/simulation/"
 	reqBytes, err := json.Marshal(simRequest)
 	if err != nil {
 		fmt.Println(err)
@@ -62,7 +64,12 @@ func main() {
 		os.Exit(1)
 	}
 	request.Header.Set("Content-Type", "application/json")
-	client := http.Client{Timeout: 30 * time.Second}
+	client := http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		fmt.Printf("Error in executing request: %v", err)
