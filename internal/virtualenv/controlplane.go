@@ -12,6 +12,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"unmarshall/scaling-recommender/internal/common"
 )
 
 // ControlPlane represents an in-memory control plane with limited components.
@@ -99,10 +100,10 @@ func (c *controlPlane) FactoryReset(ctx context.Context) error {
 		return fmt.Errorf("failed to delete all nodes: %w", err)
 	}
 	slog.Info("Removing all pods...")
-	if err := c.PodControl().DeleteAllPods(ctx); err != nil {
+	if err := c.PodControl().DeleteAllPods(ctx, common.DefaultNamespace); err != nil {
 		return fmt.Errorf("failed to delete all pods: %w", err)
 	}
-	if err := c.EventControl().DeleteAllEvents(ctx); err != nil {
+	if err := c.EventControl().DeleteAllEvents(ctx, common.DefaultNamespace); err != nil {
 		return fmt.Errorf("failed to delete all events: %w", err)
 	}
 	slog.Info("In-memory controlPlane factory reset successfully")

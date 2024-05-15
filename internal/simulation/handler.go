@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/simulation/web"
 )
@@ -26,6 +27,13 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 			slog.Info("error closing request body", "error", err)
 		}
 	}()
+
+	// first clean up the virtual cluster
+	if err := h.engine.VirtualControlPlane().FactoryReset(r.Context()); err != nil {
+		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	simRequest, err := web.ParseSimulationRequest(r.Body)
 	if err != nil {
 		web.ErrorResponse(w, http.StatusBadRequest, err.Error())
@@ -33,7 +41,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	}
 	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	logger := baseLogger.With("id", simRequest.ID)
-	logger.Info("received simulation request", "request", simRequest)
+	logger.Info("received simulation request", "request", simRequest.ID)
 
 	recommender := h.engine.RecommenderFactory().GetRecommender(scaler.MultiDimensionScoringScaleUpAlgo)
 	result := recommender.Run(r.Context(), *simRequest, *logger)
@@ -41,7 +49,10 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
 		return
 	}
-	if err = web.WriteJSON(w, http.StatusOK, web.ResponseEnvelope{"recommendation": result.Ok}); err != nil {
+	response := api.RecommendationResponse{
+		Recommendation: result.Ok,
+	}
+	if err = web.WriteJSON(w, http.StatusOK, response); err != nil {
 		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
 	}
 }

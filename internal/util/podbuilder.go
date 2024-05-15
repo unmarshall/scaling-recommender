@@ -1,6 +1,7 @@
 package util
 
 import (
+	"k8s.io/utils/pointer"
 	"unmarshall/scaling-recommender/internal/common"
 
 	corev1 "k8s.io/api/core/v1"
@@ -109,7 +110,8 @@ func (p *PodBuilder) Build() *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: p.objectMeta,
 		Spec: corev1.PodSpec{
-			SchedulerName: EmptyOr(p.schedulerName, common.DefaultSchedulerName),
+			TerminationGracePeriodSeconds: pointer.Int64(0),
+			SchedulerName:                 EmptyOr(p.schedulerName, common.DefaultSchedulerName),
 			Containers: []corev1.Container{
 				{
 					Name:  defaultContainerName,

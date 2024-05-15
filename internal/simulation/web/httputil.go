@@ -37,9 +37,7 @@ func ParseSimulationRequest(reqBody io.ReadCloser) (*api.SimulationRequest, erro
 	return simRequest, nil
 }
 
-type ResponseEnvelope map[string]interface{}
-
-func WriteJSON(w http.ResponseWriter, statusCode int, data ResponseEnvelope) error {
+func WriteJSON(w http.ResponseWriter, statusCode int, data api.RecommendationResponse) error {
 	jsonBytes, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
 		return err
@@ -54,7 +52,7 @@ func WriteJSON(w http.ResponseWriter, statusCode int, data ResponseEnvelope) err
 }
 
 func ErrorResponse(w http.ResponseWriter, statusCode int, message string) {
-	responseEnvelope := ResponseEnvelope{"error": message}
+	responseEnvelope := api.RecommendationResponse{Error: message}
 	if err := WriteJSON(w, statusCode, responseEnvelope); err != nil {
 		slog.Error("error writing response", "error", err)
 		http.Error(w, "error writing response", http.StatusInternalServerError)

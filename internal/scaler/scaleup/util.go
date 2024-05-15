@@ -76,7 +76,7 @@ func createScaleUpRecommendationFromResult(result runResult) api.ScaleUpRecommen
 	}
 }
 
-func appendScaleUpRecommendation(recommendations []api.ScaleUpRecommendation, recommendation api.ScaleUpRecommendation) {
+func appendScaleUpRecommendation(recommendations []api.ScaleUpRecommendation, recommendation api.ScaleUpRecommendation) []api.ScaleUpRecommendation {
 	var found bool
 	for i, r := range recommendations {
 		if r.NodePoolName == recommendation.NodePoolName {
@@ -88,6 +88,7 @@ func appendScaleUpRecommendation(recommendations []api.ScaleUpRecommendation, re
 	if !found {
 		recommendations = append(recommendations, recommendation)
 	}
+	return recommendations
 }
 
 func fromOriginalResourceName(name, suffix string) string {

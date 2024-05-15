@@ -65,7 +65,7 @@ func main() {
 	}
 	request.Header.Set("Content-Type", "application/json")
 	client := http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: 10 * time.Minute,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
@@ -75,19 +75,21 @@ func main() {
 		fmt.Printf("Error in executing request: %v", err)
 		os.Exit(1)
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	if response.StatusCode == http.StatusOK {
 		readBytes, err := io.ReadAll(response.Body)
 		if err != nil {
 			fmt.Printf("Error in reading response: %v", err)
 			os.Exit(1)
 		}
-		var recommendation *api.ScaleUpRecommendation
-		if err = json.Unmarshal(readBytes, recommendation); err != nil {
+		var recommendationResponse api.RecommendationResponse
+		if err = json.Unmarshal(readBytes, &recommendationResponse); err != nil {
 			fmt.Printf("Error in unmarshalling response: %v", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Response status code: %d\n Recommendation: %+v", response.StatusCode, recommendation)
+		fmt.Printf("Response status code: %d\n Recommendation response: %+v", response.StatusCode, recommendationResponse)
 	}
 
 }

@@ -3,11 +3,12 @@ package virtualenv
 import (
 	"context"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"log/slog"
 	"slices"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"unmarshall/scaling-recommender/internal/util"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,9 +17,9 @@ import (
 )
 
 type EventControl interface {
-	ListEvents(ctx context.Context, filters ...common.EventFilter) ([]corev1.Event, error)
-	DeleteAllEvents(ctx context.Context) error
-	GetPodSchedulingEvents(ctx context.Context, since time.Time, pods []*corev1.Pod, timeout time.Duration) (scheduledPodNames, unscheduledPodNames sets.Set[string], err error)
+	ListEvents(ctx context.Context, namespace string, filters ...common.EventFilter) ([]corev1.Event, error)
+	DeleteAllEvents(ctx context.Context, namespace string) error
+	GetPodSchedulingEvents(ctx context.Context, namespace string, since time.Time, pods []*corev1.Pod, timeout time.Duration) (scheduledPodNames, unscheduledPodNames sets.Set[string], err error)
 }
 
 func NewEventControl(cl client.Client) EventControl {
@@ -31,9 +32,9 @@ type eventControl struct {
 	client client.Client
 }
 
-func (e *eventControl) ListEvents(ctx context.Context, filters ...common.EventFilter) ([]corev1.Event, error) {
+func (e *eventControl) ListEvents(ctx context.Context, namespace string, filters ...common.EventFilter) ([]corev1.Event, error) {
 	eventList := &corev1.EventList{}
-	if err := e.client.List(ctx, eventList); err != nil {
+	if err := e.client.List(ctx, eventList, client.InNamespace(namespace)); err != nil {
 		return nil, err
 	}
 	if filters == nil {
@@ -49,7 +50,7 @@ func (e *eventControl) ListEvents(ctx context.Context, filters ...common.EventFi
 }
 
 // GetPodSchedulingEvents watches for pod scheduling events and returns the names of the pods that have been scheduled and unscheduled.
-func (e *eventControl) GetPodSchedulingEvents(ctx context.Context, since time.Time, pods []*corev1.Pod, timeout time.Duration) (scheduledPodNames sets.Set[string], unscheduledPodNames sets.Set[string], err error) {
+func (e *eventControl) GetPodSchedulingEvents(ctx context.Context, namespace string, since time.Time, pods []*corev1.Pod, timeout time.Duration) (scheduledPodNames sets.Set[string], unscheduledPodNames sets.Set[string], err error) {
 	tick := time.NewTicker(timeout)
 	defer tick.Stop()
 	pollTick := time.NewTicker(10 * time.Millisecond)
@@ -67,7 +68,7 @@ loop:
 		case <-tick.C:
 			return scheduledPodNames, unscheduledPodNames, fmt.Errorf("timeout waiting for pod events")
 		case <-pollTick.C:
-			events, err := e.ListEvents(ctx, filterEventBeforeTimeForPods(since, podNames))
+			events, err := e.ListEvents(ctx, namespace, filterEventBeforeTimeForPods(since, podNames))
 			if err != nil {
 				slog.Error("cannot get pod scheduling events, this will be retried", "error", err)
 			}
@@ -102,8 +103,8 @@ func filterEventBeforeTimeForPods(since time.Time, targetPodNames []string) comm
 	}
 }
 
-func (e *eventControl) DeleteAllEvents(ctx context.Context) error {
-	return e.client.DeleteAllOf(ctx, &corev1.Event{})
+func (e *eventControl) DeleteAllEvents(ctx context.Context, namespace string) error {
+	return e.client.DeleteAllOf(ctx, &corev1.Event{}, client.InNamespace(namespace))
 }
 
 func evaluateFilters(event *corev1.Event, filters []common.EventFilter) bool {

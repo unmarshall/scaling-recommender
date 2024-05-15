@@ -131,8 +131,9 @@ func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest, log
 			return scaler.ErrorResult(err)
 		}
 		r.logger.Info("For scale-up recommender", "runNumber", runNumber, "winning-score", recommendation)
-		appendScaleUpRecommendation(recommendations, recommendation)
+		recommendations = appendScaleUpRecommendation(recommendations, recommendation)
 	}
+
 	return scaler.OkScaleUpResult(recommendations)
 }
 
@@ -249,7 +250,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		if _, _, err = r.ec.GetPodSchedulingEvents(ctx, deployTime, unscheduledPods, 10*time.Second); err != nil {
+		if _, _, err = r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second); err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}
@@ -265,9 +266,11 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 
 func (r *recommender) cleanUpNodePoolSimRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
 	labels := util.AsMap(runRef)
-	err := r.pc.DeletePodsMatchingLabels(ctx, labels)
-	err = r.nc.DeleteNodesMatchingLabels(ctx, labels)
-	return err
+	slog.Info("Cleaning up simulation run", "runRef", runRef.B)
+	var errs error
+	errs = errors.Join(errs, r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, labels))
+	errs = errors.Join(errs, r.nc.DeleteNodesMatchingLabels(ctx, labels))
+	return errs
 }
 
 func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
@@ -327,7 +330,7 @@ func (r *recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, 
 	if err := r.nc.DeleteNodes(ctx, nodeName); err != nil {
 		return err
 	}
-	return r.pc.DeletePodsMatchingLabels(ctx, util.AsMap(runRef))
+	return r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, util.AsMap(runRef))
 }
 
 func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef lo.Tuple2[string, string]) ([]*corev1.Pod, error) {

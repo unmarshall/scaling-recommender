@@ -59,3 +59,8 @@ type ScaleUpRecommendation struct {
 	IncrementBy  int32  `json:"incrementBy"`
 	InstanceType string `json:"instanceType"`
 }
+
+type RecommendationResponse struct {
+	Recommendation Recommendation `json:"recommendation"`
+	Error          string         `json:"error,omitempty"`
+}

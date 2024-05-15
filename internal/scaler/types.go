@@ -21,6 +21,18 @@ type LogWriterFlusher interface {
 	http.Flusher
 }
 
+func NewScaleDownRecommendation(scaleDown []string) api.Recommendation {
+	return api.Recommendation{ScaleDown: scaleDown}
+}
+
+type Factory interface {
+	GetRecommender(variant AlgoVariant) Recommender
+}
+
+type Recommender interface {
+	Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) Result
+}
+
 type Result struct {
 	Ok  api.Recommendation
 	Err error
@@ -40,16 +52,4 @@ func OkResult(recommendation api.Recommendation) Result {
 
 func OkScaleUpResult(recommendations []api.ScaleUpRecommendation) Result {
 	return Result{Ok: api.Recommendation{ScaleUp: recommendations}}
-}
-
-func NewScaleDownRecommendation(scaleDown []string) api.Recommendation {
-	return api.Recommendation{ScaleDown: scaleDown}
-}
-
-type Factory interface {
-	GetRecommender(variant AlgoVariant) Recommender
-}
-
-type Recommender interface {
-	Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) Result
 }

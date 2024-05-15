@@ -30,9 +30,9 @@ type PodControl interface {
 	// DeletePods deletes the given pods from the in-memory controlPlane.
 	DeletePods(ctx context.Context, pods ...corev1.Pod) error
 	// DeleteAllPods deletes all pods from the in-memory controlPlane.
-	DeleteAllPods(ctx context.Context) error
+	DeleteAllPods(ctx context.Context, namespace string) error
 	// DeletePodsMatchingLabels deletes all pods matching labels
-	DeletePodsMatchingLabels(ctx context.Context, labels map[string]string) error
+	DeletePodsMatchingLabels(ctx context.Context, namespace string, labels map[string]string) error
 }
 
 type podControl struct {
@@ -126,10 +126,10 @@ func (p podControl) DeletePods(ctx context.Context, pods ...corev1.Pod) error {
 	return errs
 }
 
-func (p podControl) DeleteAllPods(ctx context.Context) error {
-	return p.client.DeleteAllOf(ctx, &corev1.Pod{})
+func (p podControl) DeleteAllPods(ctx context.Context, namespace string) error {
+	return p.client.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(namespace))
 }
 
-func (p podControl) DeletePodsMatchingLabels(ctx context.Context, labels map[string]string) error {
-	return p.client.DeleteAllOf(ctx, &corev1.Pod{}, client.MatchingLabels(labels))
+func (p podControl) DeletePodsMatchingLabels(ctx context.Context, namespace string, labels map[string]string) error {
+	return p.client.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(namespace), client.MatchingLabels(labels))
 }

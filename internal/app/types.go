@@ -48,6 +48,7 @@ func OnExit() {
 			}
 			os.Exit(exit.Code)
 		}
+		slog.Error("Exiting with panic", "panic", r)
 		panic(r)
 	}
 }
