@@ -3,8 +3,9 @@ package virtualenv
 import (
 	"context"
 	"errors"
-	"k8s.io/apimachinery/pkg/types"
 	"log/slog"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/strings/slices"
@@ -70,7 +71,7 @@ func (n nodeControl) TaintNodes(ctx context.Context, taint corev1.Taint, nodes .
 		node.Spec.Taints = append(node.Spec.Taints, taint)
 		if err := n.client.Patch(ctx, &node, patch); err != nil {
 			failedToPatchNodeNames = append(failedToPatchNodeNames, node.Name)
-			errors.Join(errs, err)
+			errs = errors.Join(errs, err)
 		}
 	}
 	if errs != nil {
@@ -93,7 +94,7 @@ func (n nodeControl) UnTaintNodes(ctx context.Context, taintKey string, nodes ..
 		node.Spec.Taints = newTaints
 		if err := n.client.Patch(ctx, node, patch); err != nil {
 			failedToPatchNodeNames = append(failedToPatchNodeNames, node.Name)
-			errors.Join(errs, err)
+			errs = errors.Join(errs, err)
 		}
 	}
 	if errs != nil {
@@ -111,7 +112,7 @@ func (n nodeControl) DeleteNodes(ctx context.Context, nodeNames ...string) error
 		return err
 	}
 	for _, node := range targetNodes {
-		errors.Join(errs, n.client.Delete(ctx, &node))
+		errs = errors.Join(errs, n.client.Delete(ctx, &node))
 	}
 	return errs
 }

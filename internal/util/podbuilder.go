@@ -2,6 +2,8 @@ package util
 
 import (
 	"fmt"
+	"strings"
+
 	"k8s.io/utils/pointer"
 	"unmarshall/scaling-recommender/internal/common"
 
@@ -38,7 +40,7 @@ func NewPodBuilder() *PodBuilder {
 }
 
 func (p *PodBuilder) NamePrefix(namePrefix string) *PodBuilder {
-	p.namePrefix = namePrefix
+	p.namePrefix = strings.ToLower(namePrefix)
 	return p
 }
 
@@ -131,6 +133,7 @@ func (p *PodBuilder) Build() []*corev1.Pod {
 			},
 		}
 		pod.Name = fmt.Sprintf("%s%d", p.namePrefix, i)
+		pod.GenerateName = ""
 		pods = append(pods, pod)
 	}
 	return pods

@@ -1,0 +1,52 @@
+{
+  "id": "s5-test",
+  "nodePools": [
+    {
+      "name": "p1",
+      "zones": [
+        "eu-west-1a"
+      ],
+      "max": 1,
+      "current": 0,
+      "instanceType": "m5.large"
+    },
+    {
+      "name": "p2",
+      "zones": [
+        "eu-west-1a"
+      ],
+      "max": 2,
+      "current": 0,
+      "instanceType": "m5.xlarge"
+    },
+    {
+      "name": "p3",
+      "zones": [
+        "eu-west-1a"
+      ],
+      "max": 5,
+      "current": 0,
+      "instanceType": "m5.2xlarge"
+    },
+    {
+      "name": "p4",
+      "zones": [
+        "eu-west-1a"
+      ],
+      "max": 5,
+      "current": 0,
+      "instanceType": "m5.4xlarge"
+    }
+  ],
+  "pods": [
+    {
+      "namePrefix": "poda-",
+      "requests": {
+        "cpu": "100m",
+        "memory": "3Gi"
+      },
+      "count": 15
+    }
+  ],
+  "nodes": []
+}

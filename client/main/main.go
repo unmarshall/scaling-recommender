@@ -6,34 +6,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"unmarshall/scaling-recommender/api"
+	"unmarshall/scaling-recommender/client/util"
 )
 
-//(single zone workerpool)
-//PodA : 5Gb -> 20 Replicas
-//NG1 : m5.large -> 8Gb; NG1Max: 12
-//NG2 : m5.4xlarge -> 64Gb; NG2Max: 4
-
 func main() {
-	simRequest := api.SimulationRequest{
-		ID: "test",
-		NodePools: []api.NodePool{
-			{Name: "p1", InstanceType: "m5.large", Max: 12, Zones: []string{"eu-west-1a"}},
-			{Name: "p2", InstanceType: "m5.4xlarge", Max: 4, Zones: []string{"eu-west-1a"}},
-		},
-		Pods: []api.PodInfo{
-			{
-				NamePrefix: "podA-",
-				Requests:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("5Gi"), corev1.ResourceCPU: resource.MustParse("100m")},
-				Count:      20,
-			},
-		},
+	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s1.json"))
+	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s2.json"))
+	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s3.json"))
+	simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4.json"))
+	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s5.json"))
+	if err != nil {
+		slog.Error("Error in creating simulation request", "error", err)
+		os.Exit(1)
 	}
 
 	reqURL := "http://localhost:8080/simulation/"
@@ -44,6 +35,7 @@ func main() {
 	}
 	r := bytes.NewReader(reqBytes)
 	request, err := http.NewRequest(http.MethodPost, reqURL, r)
+
 	if err != nil {
 		fmt.Printf("Error creating request: %v", err)
 		os.Exit(1)
@@ -78,3 +70,53 @@ func main() {
 	}
 
 }
+
+//simReq := api.SimulationRequest{
+//	ID: "s4-test",
+//	NodePools: []api.NodePool{
+//		{Name: "p1", InstanceType: "m5.large", Max: 12, Zones: []string{"eu-west-1a"}},
+//		{Name: "p2", InstanceType: "m5.xlarge", Max: 5, Zones: []string{"eu-west-1b"}},
+//		{Name: "p3", InstanceType: "m5.4xlarge", Max: 5, Zones: []string{"eu-west-1c"}},
+//	},
+//	Pods: []api.PodInfo{
+//		{
+//			NamePrefix: "poda-",
+//			Requests:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("5Gi"), corev1.ResourceCPU: resource.MustParse("100m")},
+//			Labels:     map[string]string{"variant": "small"},
+//			TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+//				{
+//					MaxSkew:     1,
+//					TopologyKey: "topology.kubernetes.io/zone",
+//					LabelSelector: &metav1.LabelSelector{
+//						MatchLabels: map[string]string{"variant": "small"},
+//					},
+//					MinDomains:        pointer.Int32(3),
+//					WhenUnsatisfiable: corev1.DoNotSchedule,
+//				},
+//			},
+//			Count: 10,
+//		},
+//		{
+//			NamePrefix: "podb-",
+//			Requests:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("12Gi"), corev1.ResourceCPU: resource.MustParse("200m")},
+//			Labels:     map[string]string{"variant": "large"},
+//			TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+//				{
+//					MaxSkew:     1,
+//					TopologyKey: "kubernetes.io/hostname",
+//					LabelSelector: &metav1.LabelSelector{
+//						MatchLabels: map[string]string{"variant": "large"},
+//					},
+//					MinDomains:        pointer.Int32(3),
+//					WhenUnsatisfiable: corev1.DoNotSchedule,
+//				},
+//			},
+//			Count: 2,
+//		},
+//	},
+//}
+//marshal, err := json.Marshal(simReq)
+//if err != nil {
+//return
+//}
+//println(string(marshal))

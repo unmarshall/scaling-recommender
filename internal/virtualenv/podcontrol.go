@@ -93,7 +93,7 @@ func (p podControl) CreatePodsAsUnscheduled(ctx context.Context, schedulerName s
 		dupPod.Spec.TerminationGracePeriodSeconds = ptr.To(int64(0))
 		if err := p.client.Create(ctx, dupPod); err != nil {
 			slog.Error("failed to create pod in virtual controlPlane", "pod", client.ObjectKeyFromObject(dupPod), "error", err)
-			errors.Join(errs, err)
+			errs = errors.Join(errs, err)
 		}
 	}
 	return errs
@@ -106,7 +106,7 @@ func (p podControl) CreatePods(ctx context.Context, pods ...*corev1.Pod) error {
 		clone.ObjectMeta.UID = ""
 		clone.ObjectMeta.ResourceVersion = ""
 		clone.ObjectMeta.CreationTimestamp = metav1.Time{}
-		errors.Join(errs, p.client.Create(ctx, clone))
+		errs = errors.Join(errs, p.client.Create(ctx, clone))
 	}
 	return errs
 }
@@ -117,7 +117,7 @@ func (p podControl) DeletePods(ctx context.Context, pods ...corev1.Pod) error {
 	for _, pod := range pods {
 		if err := p.client.Delete(ctx, &pod); err != nil {
 			podsFailedDeletion = append(podsFailedDeletion, pod.Name)
-			errors.Join(errs, err)
+			errs = errors.Join(errs, err)
 		}
 	}
 	if errs != nil {

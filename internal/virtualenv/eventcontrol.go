@@ -84,7 +84,7 @@ loop:
 					unscheduledPodNames.Delete(event.InvolvedObject.Name)
 				}
 			}
-			slog.Info("WaitForAndRecordPodSchedulingEvents completed", "num-total-pods", len(pods), "num-scheduled-pods", len(scheduledPodNames), "num-unscheduled-pods", len(unscheduledPodNames))
+			//slog.Info("WaitForAndRecordPodSchedulingEvents completed", "num-total-pods", len(pods), "num-scheduled-pods", len(scheduledPodNames), "num-unscheduled-pods", len(unscheduledPodNames))
 			if len(scheduledPodNames)+len(unscheduledPodNames) == len(pods) {
 				break loop
 			}

@@ -250,10 +250,12 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		if _, _, err = r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second); err != nil {
+		scheduledPodNames, unschedulePodNames, err := r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second)
+		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}
+		slog.Info("Received Pod scheduling events", "scheduledPodNames", scheduledPodNames, "unschedulePodNames", unschedulePodNames)
 		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, util.GetPodNames(unscheduledPods)...)
 		if err != nil {
 			resultCh <- errorRunResult(err)

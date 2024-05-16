@@ -1,0 +1,42 @@
+{
+  "id": "s3-test",
+  "nodePools": [
+    {
+      "name": "p1",
+      "zones": [
+        "eu-west-1a"
+      ],
+      "max": 12,
+      "current": 0,
+      "instanceType": "m5.large"
+    },
+    {
+      "name": "p3",
+      "zones": [
+        "eu-west-1a"
+      ],
+      "max": 4,
+      "current": 0,
+      "instanceType": "m5.4xlarge"
+    }
+  ],
+  "pods": [
+    {
+      "namePrefix": "poda-",
+      "requests": {
+        "cpu": "100m",
+        "memory": "5Gi"
+      },
+      "count": 11
+    },
+    {
+      "namePrefix": "podb-",
+      "requests": {
+        "cpu": "200m",
+        "memory": "12Gi"
+      },
+      "count": 1
+    }
+  ],
+  "nodes": []
+}

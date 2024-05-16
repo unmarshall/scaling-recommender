@@ -97,7 +97,7 @@ func ConstructPodsFromPodInfos(podInfos []api.PodInfo, sortOrder string) []*core
 		if podInfo.ScheduledOn != nil {
 			podBuilder.ScheduledOn(podInfo.ScheduledOn.Name)
 		}
-		pods = append(pods, podBuilder.Build())
+		pods = append(pods, podBuilder.Build()...)
 	}
 	sortPods(pods, sortOrder)
 	return pods

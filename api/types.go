@@ -1,6 +1,10 @@
 package api
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+)
 
 // NodePool represents a worker in gardener.
 type NodePool struct {
@@ -19,7 +23,7 @@ type PodInfo struct {
 	Requests                  corev1.ResourceList               `json:"requests"`
 	Tolerations               []corev1.Toleration               `json:"tolerations,omitempty"`
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
-	Count                     int32                             `json:"count"`
+	Count                     int                               `json:"count"`
 }
 
 // NodeInfo contains relevant information about a node.
@@ -46,7 +50,7 @@ type SimulationRequest struct {
 	Nodes     []NodeInfo `json:"nodes"`
 	// PodOrder is the order in which pods will be sorted and scheduled.
 	// If not provided, pods will be ordered in descending order of requested resources.
-	PodOrder *string
+	PodOrder *string `json:"podOrder,omitempty"`
 }
 
 type Recommendation struct {
@@ -63,5 +67,6 @@ type ScaleUpRecommendation struct {
 
 type RecommendationResponse struct {
 	Recommendation Recommendation `json:"recommendation"`
+	RunTime        time.Duration  `json:"runTime"`
 	Error          string         `json:"error,omitempty"`
 }

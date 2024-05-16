@@ -1,0 +1,83 @@
+{
+  "id": "s4-test",
+  "nodePools": [
+    {
+      "name": "p1",
+      "zones": [
+        "eu-west-1a"
+      ],
+      "max": 12,
+      "current": 0,
+      "instanceType": "m5.large"
+    },
+    {
+      "name": "p2",
+      "zones": [
+        "eu-west-1b"
+      ],
+      "max": 5,
+      "current": 0,
+      "instanceType": "m5.xlarge"
+    },
+    {
+      "name": "p3",
+      "zones": [
+        "eu-west-1c"
+      ],
+      "max": 5,
+      "current": 0,
+      "instanceType": "m5.4xlarge"
+    }
+  ],
+  "pods": [
+    {
+      "namePrefix": "poda-",
+      "labels": {
+        "variant": "small"
+      },
+      "requests": {
+        "cpu": "100m",
+        "memory": "5Gi"
+      },
+      "topologySpreadConstraints": [
+        {
+          "maxSkew": 1,
+          "topologyKey": "topology.kubernetes.io/zone",
+          "whenUnsatisfiable": "DoNotSchedule",
+          "labelSelector": {
+            "matchLabels": {
+              "variant": "small"
+            }
+          },
+          "minDomains": 3
+        }
+      ],
+      "count": 10
+    },
+    {
+      "namePrefix": "podb-",
+      "labels": {
+        "variant": "large"
+      },
+      "requests": {
+        "cpu": "200m",
+        "memory": "12Gi"
+      },
+      "topologySpreadConstraints": [
+        {
+          "maxSkew": 1,
+          "topologyKey": "kubernetes.io/hostname",
+          "whenUnsatisfiable": "DoNotSchedule",
+          "labelSelector": {
+            "matchLabels": {
+              "variant": "large"
+            }
+          },
+          "minDomains": 3
+        }
+      ],
+      "count": 2
+    }
+  ],
+  "nodes": []
+}
