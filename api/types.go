@@ -13,12 +13,13 @@ type NodePool struct {
 
 // PodInfo contains relevant information about a pod.
 type PodInfo struct {
-	Name                      string                            `json:"name"`
-	Labels                    map[string]string                 `json:"labels"`
+	NamePrefix                string                            `json:"namePrefix"`
+	Labels                    map[string]string                 `json:"labels,omitempty"`
 	ScheduledOn               *NodeReference                    `json:"scheduledOn,omitempty"`
 	Requests                  corev1.ResourceList               `json:"requests"`
-	Tolerations               []corev1.Toleration               `json:"tolerations"`
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints"`
+	Tolerations               []corev1.Toleration               `json:"tolerations,omitempty"`
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+	Count                     int32                             `json:"count"`
 }
 
 // NodeInfo contains relevant information about a node.

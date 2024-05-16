@@ -87,12 +87,13 @@ func ConstructPodsFromPodInfos(podInfos []api.PodInfo, sortOrder string) []*core
 	pods := make([]*corev1.Pod, 0, len(podInfos))
 	for _, podInfo := range podInfos {
 		podBuilder := NewPodBuilder().
-			Name(podInfo.Name).
+			NamePrefix(podInfo.NamePrefix).
 			SchedulerName(common.BinPackingSchedulerName).
 			Labels(podInfo.Labels).
 			ResourceRequests(podInfo.Requests).
 			TopologySpreadConstraints(podInfo.TopologySpreadConstraints).
-			Tolerations(podInfo.Tolerations)
+			Tolerations(podInfo.Tolerations).
+			Count(podInfo.Count)
 		if podInfo.ScheduledOn != nil {
 			podBuilder.ScheduledOn(podInfo.ScheduledOn.Name)
 		}

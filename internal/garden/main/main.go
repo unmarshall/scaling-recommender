@@ -54,10 +54,10 @@ func main() {
 //				newCm = createNewCmFromOld(existingCm)
 //				if newCm != nil {
 //					err := cl.Create(ctx, newCm)
-//					dieOnError(err, fmt.Sprintf("failed to create new GRM config map name: %s in namespace %s", newCm.Name, newCm.Namespace))
+//					dieOnError(err, fmt.Sprintf("failed to create new GRM config map name: %s in namespace %s", newCm.NamePrefix, newCm.Namespace))
 //				}
 //			}
-//			err = updateGrmDeploymentWithConfigMapVol(ctx, cl, grmDeployment, newCm.Name)
+//			err = updateGrmDeploymentWithConfigMapVol(ctx, cl, grmDeployment, newCm.NamePrefix)
 //			dieOnError(err, fmt.Sprintf("failed to update GRM deployment in namespace %s", shootControlPlaneNs))
 //		}
 //	}
@@ -68,15 +68,15 @@ func main() {
 //	cmData := oldCm.Data["config.yaml"]
 //	codec := createCodec()
 //	obj, err := runtime.Decode(codec, []byte(cmData))
-//	dieOnError(err, fmt.Sprintf("failed to decode config map data for name: %s, namespace: %s", oldCm.Name, oldCm.Namespace))
+//	dieOnError(err, fmt.Sprintf("failed to decode config map data for name: %s, namespace: %s", oldCm.NamePrefix, oldCm.Namespace))
 //	rmConfig := *(obj.(*resourcemanagerv1alpha1.ResourceManagerConfiguration))
 //	if rmConfig.TargetClientConnection == nil || slices.Contains(rmConfig.TargetClientConnection.Namespaces, corev1.NamespaceNodeLease) {
 //		return nil
 //	}
 //	rmConfig.TargetClientConnection.Namespaces = append(rmConfig.TargetClientConnection.Namespaces, corev1.NamespaceNodeLease)
 //	data, err := runtime.Encode(codec, &rmConfig)
-//	dieOnError(err, fmt.Sprintf("failed to encode config map data for name: %s, namespace: %s", oldCm.Name, oldCm.Namespace))
-//	newGRMConfigMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "gardener-resource-manager-dwd", Namespace: oldCm.Namespace}}
+//	dieOnError(err, fmt.Sprintf("failed to encode config map data for name: %s, namespace: %s", oldCm.NamePrefix, oldCm.Namespace))
+//	newGRMConfigMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{NamePrefix: "gardener-resource-manager-dwd", Namespace: oldCm.Namespace}}
 //	newGRMConfigMap.Data = map[string]string{"config.yaml": string(data)}
 //	utilruntime.Must(kubernetesutils.MakeUnique(newGRMConfigMap))
 //	return newGRMConfigMap
@@ -100,7 +100,7 @@ func main() {
 //
 //func getConfigMap(ctx context.Context, cl client.Client, ns string, name string) (*corev1.ConfigMap, error) {
 //	cm := &corev1.ConfigMap{}
-//	if err := cl.Get(ctx, client.ObjectKey{Name: name, Namespace: ns}, cm); err != nil {
+//	if err := cl.Get(ctx, client.ObjectKey{NamePrefix: name, Namespace: ns}, cm); err != nil {
 //		return nil, err
 //	}
 //	return cm, nil
@@ -109,8 +109,8 @@ func main() {
 //func getGRMCmVolumeNameAndIndex(grmDeployment *appsv1.Deployment) (string, int) {
 //	volumes := grmDeployment.Spec.Template.Spec.Volumes
 //	for i, v := range volumes {
-//		if v.Name == "config" {
-//			return v.ConfigMap.Name, i
+//		if v.NamePrefix == "config" {
+//			return v.ConfigMap.NamePrefix, i
 //		}
 //	}
 //	return "", -1
@@ -122,7 +122,7 @@ func main() {
 //		return nil
 //	}
 //	patch := client.MergeFrom(grmDeployment.DeepCopy())
-//	grmDeployment.Spec.Template.Spec.Volumes[index].ConfigMap.Name = newCmName
+//	grmDeployment.Spec.Template.Spec.Volumes[index].ConfigMap.NamePrefix = newCmName
 //	utilruntime.Must(references.InjectAnnotations(grmDeployment))
 //
 //	return cl.Patch(ctx, grmDeployment, patch)
@@ -130,7 +130,7 @@ func main() {
 //
 //func getGrmDeployment(ctx context.Context, cl client.Client, ns string) (*appsv1.Deployment, error) {
 //	dep := &appsv1.Deployment{}
-//	if err := cl.Get(ctx, client.ObjectKey{Name: "gardener-resource-manager", Namespace: ns}, dep); err != nil {
+//	if err := cl.Get(ctx, client.ObjectKey{NamePrefix: "gardener-resource-manager", Namespace: ns}, dep); err != nil {
 //		return nil, err
 //	}
 //	return dep, nil
@@ -143,7 +143,7 @@ func main() {
 //		return nil, err
 //	}
 //	for _, cm := range cmList.Items {
-//		if strings.HasPrefix(cm.Name, grmDWDConfigMapNamePrefix) {
+//		if strings.HasPrefix(cm.NamePrefix, grmDWDConfigMapNamePrefix) {
 //			return &cm, nil
 //		}
 //	}
@@ -158,23 +158,23 @@ func main() {
 //func getTargets() []target {
 //	return []target{
 //		{
-//			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "gcp-us1"},
+//			seedCoord:              common.ShootCoordinate{Project: "garden", NamePrefix: "gcp-us1"},
 //			shootControlNamespaces: []string{"shoot--als-canary--cf-us31"},
 //		},
 //		{
-//			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "aws-ha-ap3"},
+//			seedCoord:              common.ShootCoordinate{Project: "garden", NamePrefix: "aws-ha-ap3"},
 //			shootControlNamespaces: []string{"shoot--als-global--aws-ap12"},
 //		},
 //		{
-//			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "aws-ha-ap1"},
+//			seedCoord:              common.ShootCoordinate{Project: "garden", NamePrefix: "aws-ha-ap1"},
 //			shootControlNamespaces: []string{"shoot--als-global--aws-ap11"},
 //		},
 //		{
-//			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "aws-ap3"},
+//			seedCoord:              common.ShootCoordinate{Project: "garden", NamePrefix: "aws-ap3"},
 //			shootControlNamespaces: []string{"shoot--als-global--aws-jp10", "shoot--edgelm--prod-jp10"},
 //		},
 //		{
-//			seedCoord:              common.ShootCoordinate{Project: "garden", Name: "gcp-us1"},
+//			seedCoord:              common.ShootCoordinate{Project: "garden", NamePrefix: "gcp-us1"},
 //			shootControlNamespaces: []string{"shoot--als-global--gcp-us30"},
 //		},
 //	}

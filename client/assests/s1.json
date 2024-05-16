@@ -1,0 +1,25 @@
+{
+  "nodePools": [
+    {
+      "name": "p1",
+      "zones": ["eu-west-1a"],
+      "max": 12,
+      "current": 0,
+      "instanceType": "m5.large"
+    },
+    {
+      "name": "p2",
+      "zones": ["eu-west-1a"],
+      "max": 4,
+      "current": 0,
+      "instanceType": "m5.4xlarge"
+    }
+  ],
+  "nodes": [],
+  "pods": [
+    {
+      "namePrefix": "podA-",
+      "requests":
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"k8s.io/utils/pointer"
 	"unmarshall/scaling-recommender/internal/common"
 
@@ -22,6 +23,8 @@ type PodBuilder struct {
 	topologySpreadConstraints []corev1.TopologySpreadConstraint
 	tolerations               []corev1.Toleration
 	nodeName                  string
+	count                     int
+	namePrefix                string
 }
 
 func NewPodBuilder() *PodBuilder {
@@ -34,15 +37,8 @@ func NewPodBuilder() *PodBuilder {
 	}
 }
 
-func (p *PodBuilder) Name(name string) *PodBuilder {
-	p.objectMeta.Name = name
-	p.objectMeta.GenerateName = ""
-	return p
-}
-
-func (p *PodBuilder) GenerateName(generateName string) *PodBuilder {
-	p.objectMeta.GenerateName = generateName
-	p.objectMeta.Name = ""
+func (p *PodBuilder) NamePrefix(namePrefix string) *PodBuilder {
+	p.namePrefix = namePrefix
 	return p
 }
 
@@ -106,24 +102,36 @@ func (p *PodBuilder) ScheduledOn(nodeName string) *PodBuilder {
 	return p
 }
 
-func (p *PodBuilder) Build() *corev1.Pod {
-	return &corev1.Pod{
-		ObjectMeta: p.objectMeta,
-		Spec: corev1.PodSpec{
-			TerminationGracePeriodSeconds: pointer.Int64(0),
-			SchedulerName:                 EmptyOr(p.schedulerName, common.DefaultSchedulerName),
-			Containers: []corev1.Container{
-				{
-					Name:  defaultContainerName,
-					Image: defaultContainerImage,
-					Resources: corev1.ResourceRequirements{
-						Requests: p.resourceRequests,
+func (p *PodBuilder) Count(count int) *PodBuilder {
+	p.count = count
+	return p
+}
+
+func (p *PodBuilder) Build() []*corev1.Pod {
+	pods := make([]*corev1.Pod, 0, p.count)
+
+	for i := 0; i < p.count; i++ {
+		pod := &corev1.Pod{
+			ObjectMeta: p.objectMeta,
+			Spec: corev1.PodSpec{
+				TerminationGracePeriodSeconds: pointer.Int64(0),
+				SchedulerName:                 EmptyOr(p.schedulerName, common.DefaultSchedulerName),
+				Containers: []corev1.Container{
+					{
+						Name:  defaultContainerName,
+						Image: defaultContainerImage,
+						Resources: corev1.ResourceRequirements{
+							Requests: p.resourceRequests,
+						},
 					},
 				},
+				TopologySpreadConstraints: p.topologySpreadConstraints,
+				Tolerations:               p.tolerations,
+				NodeName:                  p.nodeName,
 			},
-			TopologySpreadConstraints: p.topologySpreadConstraints,
-			Tolerations:               p.tolerations,
-			NodeName:                  p.nodeName,
-		},
+		}
+		pod.Name = fmt.Sprintf("%s%d", p.namePrefix, i)
+		pods = append(pods, pod)
 	}
+	return pods
 }
