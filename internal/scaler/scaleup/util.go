@@ -67,6 +67,15 @@ func getWinningRunResult(results []*runResult) *runResult {
 	return winner
 }
 
+func printResultsSummary(runNumber int, results []*runResult, winningResult *runResult) {
+	slog.Info("Result summary for simulation run", "runNumber", runNumber)
+	slog.Info("-----------------------------------------------------------------------")
+	for _, r := range results {
+		slog.Info("run result", "nodePoolName", r.nodePoolName, "zone", r.zone, "instanceType", r.instanceType, "score", r.nodeScore)
+	}
+	slog.Info("----- Winning RunResult -----", "nodePoolName", winningResult.nodePoolName, "zone", winningResult.zone, "instanceType", winningResult.instanceType, "nodeToPods", winningResult.nodeToPods)
+}
+
 func createScaleUpRecommendationFromResult(result runResult) api.ScaleUpRecommendation {
 	return api.ScaleUpRecommendation{
 		Zone:         result.zone,

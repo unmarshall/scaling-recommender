@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"unmarshall/scaling-recommender/api"
 
 	"github.com/samber/lo"
@@ -68,14 +69,23 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) []*corev1.Node {
 				Taints: np.Taints,
 			},
 			Status: corev1.NodeStatus{
-				Allocatable: np.Allocatable,
-				Capacity:    np.Capacity,
+				Allocatable: setMaxAllowedPods(np.Allocatable),
+				Capacity:    setMaxAllowedPods(np.Capacity),
 				Phase:       corev1.NodeRunning,
 			},
 		}
 		nodes = append(nodes, node)
 	}
 	return nodes
+}
+
+func setMaxAllowedPods(resourceList corev1.ResourceList) corev1.ResourceList {
+	return corev1.ResourceList{
+		corev1.ResourcePods:             resource.MustParse("110"),
+		corev1.ResourceCPU:              resourceList[corev1.ResourceCPU],
+		corev1.ResourceMemory:           resourceList[corev1.ResourceMemory],
+		corev1.ResourceEphemeralStorage: resourceList[corev1.ResourceEphemeralStorage],
+	}
 }
 
 func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {

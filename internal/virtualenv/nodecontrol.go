@@ -22,7 +22,7 @@ type NodeControl interface {
 	// ListNodes returns the current nodes of the in-memory controlPlane.
 	ListNodes(ctx context.Context, filters ...common.NodeFilter) ([]corev1.Node, error)
 	// TaintNodes taints the given nodes with the given taint.
-	TaintNodes(ctx context.Context, taint corev1.Taint, nodes ...corev1.Node) error
+	TaintNodes(ctx context.Context, taint corev1.Taint, nodes ...*corev1.Node) error
 	//UnTaintNodes removes the given taint from the given nodes.
 	UnTaintNodes(ctx context.Context, taintKey string, nodes ...*corev1.Node) error
 	// DeleteNodes deletes the nodes identified by the given names from the in-memory controlPlane.
@@ -63,13 +63,13 @@ func (n nodeControl) ListNodes(ctx context.Context, filters ...common.NodeFilter
 	return util.ListNodes(ctx, n.client, filters...)
 }
 
-func (n nodeControl) TaintNodes(ctx context.Context, taint corev1.Taint, nodes ...corev1.Node) error {
+func (n nodeControl) TaintNodes(ctx context.Context, taint corev1.Taint, nodes ...*corev1.Node) error {
 	var errs error
 	failedToPatchNodeNames := make([]string, 0, len(nodes))
 	for _, node := range nodes {
 		patch := client.MergeFromWithOptions(node.DeepCopy(), client.MergeFromWithOptimisticLock{})
 		node.Spec.Taints = append(node.Spec.Taints, taint)
-		if err := n.client.Patch(ctx, &node, patch); err != nil {
+		if err := n.client.Patch(ctx, node, patch); err != nil {
 			failedToPatchNodeNames = append(failedToPatchNodeNames, node.Name)
 			errs = errors.Join(errs, err)
 		}

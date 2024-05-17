@@ -20,7 +20,8 @@ func main() {
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s1.json"))
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s2.json"))
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s3.json"))
-	simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4.json"))
+	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4.json"))
+	simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4a.json"))
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s5.json"))
 	if err != nil {
 		slog.Error("Error in creating simulation request", "error", err)
@@ -42,7 +43,7 @@ func main() {
 	}
 	request.Header.Set("Content-Type", "application/json")
 	client := http.Client{
-		Timeout: 10 * time.Minute,
+		Timeout: 60 * time.Minute,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
@@ -66,7 +67,12 @@ func main() {
 			fmt.Printf("Error in unmarshalling response: %v", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Response status code: %d\n Recommendation response: %+v", response.StatusCode, recommendationResponse)
+		respJson, err := json.MarshalIndent(recommendationResponse, "", "\t")
+		if err != nil {
+			fmt.Printf("Error in marshalling response: %v", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Response status code: %d\n Recommendation response: %+v", response.StatusCode, string(respJson))
 	}
 
 }

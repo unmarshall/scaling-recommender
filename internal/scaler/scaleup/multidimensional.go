@@ -108,6 +108,9 @@ func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest, log
 	r.logger = logger
 	r.instanceTypeCostRatios = r.pa.ComputeCostRatiosForInstanceTypes(simReq.NodePools)
 	r.initializeSimulationState(simReq)
+	if err := r.initializeVirtualCluster(ctx); err != nil {
+		return scaler.ErrorResult(err)
+	}
 	for {
 		runNumber++
 		r.logger.Info("Scale-up recommender run started...", "runNumber", runNumber)
@@ -181,16 +184,18 @@ func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult 
 		return errorRunResult(errs)
 	}
 	winnerRunResult := getWinningRunResult(results)
+	printResultsSummary(runNum, results, winnerRunResult)
 	return winnerRunResult
 }
 
 func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh chan *runResult, runNum int) {
 	wg := &sync.WaitGroup{}
 	r.logger.Info("Starting simulation runs for nodePools", "NodePools", maps.Keys(r.state.eligibleNodePools))
+
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
 		runRef := lo.T2(simRunKey, nodePool.Name+"-"+strconv.Itoa(runNum))
-		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
+		r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
 	wg.Wait()
 	close(resultCh)
@@ -292,6 +297,9 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		clonedNodes = append(clonedNodes, nodeCopy)
 	}
 	if err := r.nc.CreateNodes(ctx, clonedNodes...); err != nil {
+		return err
+	}
+	if err := r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, clonedNodes...); err != nil {
 		return err
 	}
 
@@ -406,14 +414,34 @@ func (r *recommender) syncWinningResult(ctx context.Context, recommendation *api
 	defer func() {
 		r.logger.Info("syncWinningResult for nodePool completed", "nodePool", recommendation.NodePoolName, "duration", time.Since(startTime).Seconds())
 	}()
-	scheduledPodNames, err := r.syncClusterWithWinningResult(ctx, winningRunResult)
+	scheduledPodNames, err := r.syncVirtualClusterWithWinningResult(ctx, winningRunResult)
 	if err != nil {
 		return err
 	}
 	return r.syncRecommenderStateWithWinningResult(ctx, recommendation, winningRunResult.nodeName, scheduledPodNames)
 }
 
-func (r *recommender) syncClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
+func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context, recommendation *api.ScaleUpRecommendation, winningNodeName string, scheduledPodNames []string) error {
+	winnerNode, err := r.nc.GetNode(ctx, types.NamespacedName{Name: winningNodeName, Namespace: common.DefaultNamespace})
+	if err != nil {
+		return err
+	}
+	r.state.existingNodes = append(r.state.existingNodes, winnerNode)
+	scheduledPods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames...)
+	if err != nil {
+		return err
+	}
+	for _, pod := range scheduledPods {
+		r.state.scheduledPods = append(r.state.scheduledPods, &pod)
+		r.state.unscheduledPods = slices.DeleteFunc(r.state.unscheduledPods, func(p *corev1.Pod) bool {
+			return p.Name == pod.Name
+		})
+	}
+	r.state.updateEligibleNodePools(recommendation)
+	return nil
+}
+
+func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
 	refNode, err := r.getReferenceNode(winningRunResult.instanceType)
 	if err != nil {
 		return nil, err
@@ -452,22 +480,19 @@ func (r *recommender) syncClusterWithWinningResult(ctx context.Context, winningR
 	return util.GetPodNames(scheduledPods), nil
 }
 
-func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context, recommendation *api.ScaleUpRecommendation, winningNodeName string, scheduledPodNames []string) error {
-	winnerNode, err := r.nc.GetNode(ctx, types.NamespacedName{Name: winningNodeName, Namespace: common.DefaultNamespace})
-	if err != nil {
-		return err
+func (r *recommender) initializeVirtualCluster(ctx context.Context) error {
+	if r.state.existingNodes != nil {
+		if err := r.nc.CreateNodes(ctx, r.state.existingNodes...); err != nil {
+			return fmt.Errorf("failed to initialize virtual cluster with existing nodes: %w", err)
+		}
+		//if err := r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, r.state.existingNodes...); err != nil {
+		//	return fmt.Errorf("failed to untaint existing nodes: %w", err)
+		//}
 	}
-	r.state.existingNodes = append(r.state.existingNodes, winnerNode)
-	scheduledPods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames...)
-	if err != nil {
-		return err
+	if r.state.scheduledPods != nil {
+		if err := r.pc.CreatePods(ctx, r.state.scheduledPods...); err != nil {
+			return fmt.Errorf("failed to initialize virtual cluster with scheduled pods: %w", err)
+		}
 	}
-	for _, pod := range scheduledPods {
-		r.state.scheduledPods = append(r.state.scheduledPods, &pod)
-		r.state.unscheduledPods = slices.DeleteFunc(r.state.unscheduledPods, func(p *corev1.Pod) bool {
-			return p.Name == pod.Name
-		})
-	}
-	r.state.updateEligibleNodePools(recommendation)
 	return nil
 }
