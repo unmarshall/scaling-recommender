@@ -485,9 +485,6 @@ func (r *recommender) initializeVirtualCluster(ctx context.Context) error {
 		if err := r.nc.CreateNodes(ctx, r.state.existingNodes...); err != nil {
 			return fmt.Errorf("failed to initialize virtual cluster with existing nodes: %w", err)
 		}
-		//if err := r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, r.state.existingNodes...); err != nil {
-		//	return fmt.Errorf("failed to untaint existing nodes: %w", err)
-		//}
 	}
 	if r.state.scheduledPods != nil {
 		if err := r.pc.CreatePods(ctx, r.state.scheduledPods...); err != nil {
