@@ -124,3 +124,11 @@ func (n nodeControl) DeleteAllNodes(ctx context.Context) error {
 func (n nodeControl) DeleteNodesMatchingLabels(ctx context.Context, labels map[string]string) error {
 	return n.client.DeleteAllOf(ctx, &corev1.Node{}, client.MatchingLabels(labels))
 }
+
+func CreateAndUntaintNode(ctx context.Context, nc NodeControl, taintKey string, nodes ...*corev1.Node) error {
+	err := nc.CreateNodes(ctx, nodes...)
+	if err != nil {
+		return err
+	}
+	return nc.UnTaintNodes(ctx, taintKey, nodes...)
+}

@@ -240,11 +240,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		if err = r.nc.CreateNodes(ctx, node); err != nil {
-			resultCh <- errorRunResult(err)
-			return
-		}
-		if err = r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, node); err != nil {
+		if err = virtualenv.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}
@@ -296,10 +292,7 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		}
 		clonedNodes = append(clonedNodes, nodeCopy)
 	}
-	if err := r.nc.CreateNodes(ctx, clonedNodes...); err != nil {
-		return err
-	}
-	if err := r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, clonedNodes...); err != nil {
+	if err := virtualenv.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, clonedNodes...); err != nil {
 		return err
 	}
 
@@ -471,10 +464,7 @@ func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, w
 	if err = r.pc.CreatePods(ctx, scheduledPods...); err != nil {
 		return nil, err
 	}
-	if err = r.nc.CreateNodes(ctx, node); err != nil {
-		return nil, err
-	}
-	if err = r.nc.UnTaintNodes(ctx, common.NotReadyTaintKey, node); err != nil {
+	if err = virtualenv.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
 		return nil, err
 	}
 	return util.GetPodNames(scheduledPods), nil
