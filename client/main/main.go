@@ -21,8 +21,8 @@ func main() {
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s2.json"))
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s3.json"))
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4.json"))
-	simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4a.json"))
-	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s5.json"))
+	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4a.json"))
+	simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s5.json"))
 	if err != nil {
 		slog.Error("Error in creating simulation request", "error", err)
 		os.Exit(1)

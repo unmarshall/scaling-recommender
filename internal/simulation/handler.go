@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -54,7 +55,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	runTime := time.Since(startTime)
 	response := api.RecommendationResponse{
 		Recommendation: result.Ok,
-		RunTime:        runTime,
+		RunTime:        fmt.Sprintf("%d millis", runTime.Milliseconds()),
 	}
 	if err = web.WriteJSON(w, http.StatusOK, response); err != nil {
 		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
