@@ -53,27 +53,6 @@ func ListPods(ctx context.Context, cl client.Client, filters ...common.PodFilter
 	return filteredPods, nil
 }
 
-func ConstructNewPods(pods []corev1.Pod, nodeName, schedulerName string) ([]corev1.Pod, error) {
-	var newPods []corev1.Pod
-	for _, pod := range pods {
-		suffix, err := GenerateRandomString(4)
-		if err != nil {
-			return nil, err
-		}
-		newPod := pod.DeepCopy()
-		newPod.Spec.NodeName = nodeName
-		newPod.Spec.SchedulerName = schedulerName
-		if lo.IsEmpty(pod.GenerateName) {
-			newPod.Name = pod.Name + "-" + suffix
-		} else {
-			newPod.Name = ""
-		}
-		newPods = append(newPods, *newPod)
-	}
-	return newPods, nil
-
-}
-
 func evaluatePodFilters(pod *corev1.Pod, filters []common.PodFilter) bool {
 	for _, f := range filters {
 		if ok := f(pod); !ok {
@@ -87,16 +66,12 @@ func ConstructPodsFromPodInfos(podInfos []api.PodInfo, sortOrder string) []*core
 	pods := make([]*corev1.Pod, 0, len(podInfos))
 	for _, podInfo := range podInfos {
 		podBuilder := NewPodBuilder().
-			NamePrefix(podInfo.NamePrefix).
+			Name(podInfo.Name).
 			SchedulerName(common.BinPackingSchedulerName).
 			Labels(podInfo.Labels).
-			ResourceRequests(podInfo.Requests).
-			TopologySpreadConstraints(podInfo.TopologySpreadConstraints).
-			Tolerations(podInfo.Tolerations).
+			Spec(podInfo.Spec).
+			NominatedNodeName(podInfo.NominatedNodeName).
 			Count(podInfo.Count)
-		if podInfo.ScheduledOn != nil {
-			podBuilder.ScheduledOn(podInfo.ScheduledOn.Name)
-		}
 		pods = append(pods, podBuilder.Build()...)
 	}
 	sortPods(pods, sortOrder)

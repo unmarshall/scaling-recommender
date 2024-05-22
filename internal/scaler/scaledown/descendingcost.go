@@ -48,8 +48,8 @@ package scaledown
 //	}
 //	deletableNodeNames := make([]string, 0, len(nodes))
 //	for _, node := range nodes {
-//		web.Logf(w, "Considering candidate node %s...", node.NamePrefix)
-//		assignedPods, err := r.getPodsAssignedToNode(ctx, node.NamePrefix)
+//		web.Logf(w, "Considering candidate node %s...", node.Name)
+//		assignedPods, err := r.getPodsAssignedToNode(ctx, node.Name)
 //		if err != nil {
 //			web.InternalError(w, err)
 //			return scaler.ErrorResult(err)
@@ -59,8 +59,8 @@ package scaledown
 //			return scaler.ErrorResult(err)
 //		}
 //		if len(assignedPods) == 0 {
-//			deletableNodeNames = append(deletableNodeNames, node.NamePrefix)
-//			web.Logf(w, "Node %s has no assigned pods and can be deleted", node.NamePrefix)
+//			deletableNodeNames = append(deletableNodeNames, node.Name)
+//			web.Logf(w, "Node %s has no assigned pods and can be deleted", node.Name)
 //		}
 //		deployStartTime := time.Now()
 //		adjustedPods, err := r.createAndDeployNewUnassignedPods(ctx, w, assignedPods)
@@ -74,19 +74,19 @@ package scaledown
 //		}
 //		web.Logf(w, "Scheduled pods: %v, unscheduled pods: %v", scheduledPodNames, unscheduledPodNames)
 //		if len(unscheduledPodNames) != 0 {
-//			web.Logf(w, "Node %s CANNOT be removed since it will result in %d unscheduled pods", node.NamePrefix, len(unscheduledPodNames))
+//			web.Logf(w, "Node %s CANNOT be removed since it will result in %d unscheduled pods", node.Name, len(unscheduledPodNames))
 //			if err = r.pc.DeletePods(ctx, adjustedPods...); err != nil {
 //				web.InternalError(w, err)
 //				return scaler.ErrorResult(err)
 //			}
-//			web.Logf(w, "Recreating node %s and corresponding pods %s", node.NamePrefix, util.GetPodNames(assignedPods))
+//			web.Logf(w, "Recreating node %s and corresponding pods %s", node.Name, util.GetPodNames(assignedPods))
 //			if err = r.recreateNodeWithPods(ctx, &node, assignedPods); err != nil {
 //				web.InternalError(w, err)
 //				return scaler.ErrorResult(err)
 //			}
 //		} else {
-//			web.Logf(w, "Node %s can be removed, adding it to deletion candidates", node.NamePrefix)
-//			deletableNodeNames = append(deletableNodeNames, node.NamePrefix)
+//			web.Logf(w, "Node %s can be removed, adding it to deletion candidates", node.Name)
+//			deletableNodeNames = append(deletableNodeNames, node.Name)
 //		}
 //	}
 //	return scaler.OkResult(scaler.NewScaleDownRecommendation(deletableNodeNames))
@@ -96,7 +96,7 @@ package scaledown
 //	if err := r.nc.CreateNodes(ctx, *node); err != nil {
 //		return err
 //	}
-//	newPods, err := util.ConstructNewPods(pods, node.NamePrefix, common.BinPackingSchedulerName)
+//	newPods, err := util.ConstructNewPods(pods, node.Name, common.BinPackingSchedulerName)
 //	if err != nil {
 //		return err
 //	}
@@ -114,8 +114,8 @@ package scaledown
 //}
 //
 //func (r *recommender) deleteNodeAndAssignedPods(ctx context.Context, w scaler.LogWriterFlusher, node *corev1.Node, pods []corev1.Pod) error {
-//	web.Logf(w, "Deleting candidate node %s", node.NamePrefix)
-//	if err := r.nc.DeleteNodes(ctx, node.NamePrefix); err != nil {
+//	web.Logf(w, "Deleting candidate node %s", node.Name)
+//	if err := r.nc.DeleteNodes(ctx, node.Name); err != nil {
 //		return err
 //	}
 //	web.Logf(w, "Deleting assigned pods %v", util.GetPodNames(pods))

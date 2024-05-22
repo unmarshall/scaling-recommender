@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,13 +21,40 @@ func main() {
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s2.json"))
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s3.json"))
 	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4.json"))
-	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s4a.json"))
-	simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s5.json"))
-	if err != nil {
-		slog.Error("Error in creating simulation request", "error", err)
-		os.Exit(1)
+	//simRequest, err := util.CreateSimRequest(filepath.Join("client", "assets", "s5.json"))
+	//if err != nil {
+	//	slog.Error("Error in creating simulation request", "error", err)
+	//	os.Exit(1)
+	//}
+	scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenarios.json"))
+	dieOnError(err)
+	simRequests, err := util.CreateSimRequests(scenarios)
+	dieOnError(err)
+	for i, simRequest := range simRequests {
+		recommendation, err := runSimulation(simRequest)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		caRecommendation := util.ExtractCAScaleUpRecommendation(scenarios[i].NodeGroups)
+		prettyPrint(recommendation, "recommendation: ")
+		prettyPrint(caRecommendation, "CA recommendation: ")
 	}
+}
 
+func prettyPrint[T any](obj T, message string) {
+	jsonBytes, err := json.MarshalIndent(obj, "", "\t")
+	dieOnError(err)
+	fmt.Printf("%s:%s\n", message, string(jsonBytes))
+}
+
+func dieOnError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runSimulation(simRequest api.SimulationRequest) (*api.RecommendationResponse, error) {
 	reqURL := "http://localhost:8080/simulation/"
 	reqBytes, err := json.Marshal(simRequest)
 	if err != nil {
@@ -43,7 +70,7 @@ func main() {
 	}
 	request.Header.Set("Content-Type", "application/json")
 	client := http.Client{
-		Timeout: 60 * time.Minute,
+		Timeout: 10 * time.Minute,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
@@ -62,19 +89,14 @@ func main() {
 			fmt.Printf("Error in reading response: %v", err)
 			os.Exit(1)
 		}
-		var recommendationResponse api.RecommendationResponse
-		if err = json.Unmarshal(readBytes, &recommendationResponse); err != nil {
+		var recommendationResponse *api.RecommendationResponse
+		if err = json.Unmarshal(readBytes, recommendationResponse); err != nil {
 			fmt.Printf("Error in unmarshalling response: %v", err)
 			os.Exit(1)
 		}
-		respJson, err := json.MarshalIndent(recommendationResponse, "", "\t")
-		if err != nil {
-			fmt.Printf("Error in marshalling response: %v", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Response status code: %d\n Recommendation response: %+v", response.StatusCode, string(respJson))
+		return recommendationResponse, nil
 	}
-
+	return nil, fmt.Errorf("failed simulation: %s, StatusCode: %d, Status:%s", simRequest.ID, response.StatusCode, response.Status)
 }
 
 //simReq := api.SimulationRequest{
@@ -86,7 +108,7 @@ func main() {
 //	},
 //	Pods: []api.PodInfo{
 //		{
-//			NamePrefix: "poda-",
+//			Name: "poda-",
 //			Requests:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("5Gi"), corev1.ResourceCPU: resource.MustParse("100m")},
 //			Labels:     map[string]string{"variant": "small"},
 //			TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
@@ -103,7 +125,7 @@ func main() {
 //			Count: 10,
 //		},
 //		{
-//			NamePrefix: "podb-",
+//			Name: "podb-",
 //			Requests:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceMemory: resource.MustParse("12Gi"), corev1.ResourceCPU: resource.MustParse("200m")},
 //			Labels:     map[string]string{"variant": "large"},
 //			TopologySpreadConstraints: []corev1.TopologySpreadConstraint{

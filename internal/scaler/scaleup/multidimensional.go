@@ -223,7 +223,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 		resultCh <- errorRunResult(err)
 		return
 	}
-	for _, zone := range nodePool.Zones {
+	for _, zone := range nodePool.Zones.UnsortedList() {
 		if node != nil {
 			if err = r.resetNodePoolSimRun(ctx, node.Name, runRef); err != nil {
 				resultCh <- errorRunResult(err)

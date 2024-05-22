@@ -1,27 +1,34 @@
 package api
 
 import (
+	"k8s.io/apimachinery/pkg/util/sets"
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
+// Create two funcs :- 1. Convert NodeGrpInfos to NodePools.
+// 2. Extract Recommendation from NodeGrpInfos
+// For each pair of scenario-CArecommendation, we run the simulation, get the recommendation
+// and print both. Also print which is better in terms of cost.
+// If priority expander is used by CA, then highlight that the comparison cannot be made
+
 // NodePool represents a worker in gardener.
 type NodePool struct {
-	Name         string   `json:"name"`
-	Zones        []string `json:"zones"`
-	Max          int32    `json:"max"`
-	Current      int32    `json:"current"`
-	InstanceType string   `json:"instanceType"`
+	Name         string           `json:"name"`
+	Zones        sets.Set[string] `json:"zones"`
+	Max          int32            `json:"max"`
+	Current      int32            `json:"current"`
+	InstanceType string           `json:"instanceType"`
 }
 
 // PodInfo contains relevant information about a pod.
 type PodInfo struct {
-	NamePrefix                string                            `json:"namePrefix"`
-	Labels                    map[string]string                 `json:"labels,omitempty"`
-	ScheduledOn               *NodeReference                    `json:"scheduledOn,omitempty"`
-	Requests                  corev1.ResourceList               `json:"requests"`
-	Tolerations               []corev1.Toleration               `json:"tolerations,omitempty"`
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
-	Count                     int                               `json:"count"`
+	Name              string            `json:"name,omitempty"`
+	Labels            map[string]string `json:"labels,omitempty"`
+	Spec              corev1.PodSpec    `json:"spec"`
+	NominatedNodeName string            `json:"nominatedNodeName,omitempty"`
+	Count             int               `json:"count"`
 }
 
 // NodeInfo contains relevant information about a node.
@@ -65,6 +72,6 @@ type ScaleUpRecommendation struct {
 
 type RecommendationResponse struct {
 	Recommendation Recommendation `json:"recommendation"`
-	RunTime        string         `json:"runTime"`
+	RunTime        time.Duration  `json:"runTime"`
 	Error          string         `json:"error,omitempty"`
 }
