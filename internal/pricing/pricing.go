@@ -1,13 +1,14 @@
 package pricing
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/util/json"
 	"unmarshall/scaling-recommender/api"
-	"unmarshall/scaling-recommender/internal/util"
 )
 
 type InstancePricingAccess interface {
@@ -15,17 +16,16 @@ type InstancePricingAccess interface {
 	ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64
 }
 
-func NewInstancePricingAccess() (InstancePricingAccess, error) {
-	pricingMap, err := loadInstancePricing()
-	if err != nil {
+func NewInstancePricingAccess(provider string) (InstancePricingAccess, error) {
+	a := &access{provider: provider}
+	if err := a.initializeProviderPricing(); err != nil {
 		return nil, err
 	}
-	return &access{
-		pricingMap: pricingMap,
-	}, nil
+	return a, nil
 }
 
 type access struct {
+	provider   string
 	pricingMap map[string]InstancePricing
 }
 
@@ -50,13 +50,21 @@ func (a *access) ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map
 	return instanceTypeCostRatios
 }
 
-func loadInstancePricing() (map[string]InstancePricing, error) {
-	var allPricing AllInstancePricing
-	filePath, err := util.GetAbsoluteConfigPath("internal", "pricing", "assets", "aws_pricing_eu-west-1.json")
-	if err != nil {
-		return nil, err
+func (a *access) initializeProviderPricing() (err error) {
+	switch a.provider {
+	case "aws":
+		a.pricingMap, err = loadInstancePricing(filepath.Join("internal", "pricing", "assets", "aws_pricing_eu-west-1.json"))
+	case "gcp":
+		a.pricingMap, err = loadInstancePricing(filepath.Join("internal", "pricing", "assets", "gcp_pricing_eu-west1.json"))
+	default:
+		err = fmt.Errorf("provider not supported: %s", a.provider)
 	}
-	content, err := os.ReadFile(*filePath)
+	return
+}
+
+func loadInstancePricing(pricingJsonPath string) (map[string]InstancePricing, error) {
+	var allPricing AllInstancePricing
+	content, err := os.ReadFile(pricingJsonPath)
 	if err != nil {
 		return nil, err
 	}

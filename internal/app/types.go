@@ -25,6 +25,7 @@ type Config struct {
 	ReferenceShoot   ShootCoordinate
 	TargetShoot      *ShootCoordinate
 	BinaryAssetsPath string
+	Provider         string
 }
 
 type Exit struct {

@@ -33,6 +33,10 @@ func main() {
 		app.ExitAppWithError(1, fmt.Errorf("failed to parse command line arguments: %w", err))
 	}
 
+	if err = validateConfig(appConfig); err != nil {
+		app.ExitAppWithError(1, fmt.Errorf("invalid configuration: %w", err))
+	}
+
 	slog.Info("starting scaling recommender environment", "appConfig", appConfig)
 	gardenAccess := initializeGardenAccess(ctx, appConfig)
 	vCluster := startVirtualCluster(ctx, appConfig)
@@ -42,7 +46,8 @@ func main() {
 			slog.Error("failed to stop virtual cluster", "error", err)
 		}
 	}()
-	pricingAccess, err := pricing.NewInstancePricingAccess()
+	slog.Info("Initializing instance pricing access...")
+	pricingAccess, err := pricing.NewInstancePricingAccess(appConfig.Provider)
 	if err != nil {
 		app.ExitAppWithError(1, fmt.Errorf("failed to create instance pricing access: %w", err))
 	}
@@ -110,8 +115,25 @@ func parseCmdArgs() (app.Config, error) {
 	fs.StringVar(&config.ReferenceShoot.Name, "reference-shoot-name", "", "name of the reference shoot")
 	fs.StringVar(&config.TargetShoot.Project, "target-shoot-project", "", "project of the target shoot")
 	fs.StringVar(&config.TargetShoot.Name, "target-shoot-name", "", "name of the target shoot")
+	fs.StringVar(&config.Provider, "provider", "", "provider of the target shoot")
 	if err := fs.Parse(args); err != nil {
 		return config, err
 	}
 	return config, nil
+}
+
+func validateConfig(config app.Config) error {
+	if config.Garden == "" {
+		return fmt.Errorf("garden name is required")
+	}
+	if config.BinaryAssetsPath == "" {
+		return fmt.Errorf("binary assets path is required")
+	}
+	if config.ReferenceShoot.Project == "" || config.ReferenceShoot.Name == "" {
+		return fmt.Errorf("reference shoot project and name are required")
+	}
+	if config.Provider == "" {
+		return fmt.Errorf("provider is required")
+	}
+	return nil
 }

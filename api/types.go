@@ -2,7 +2,6 @@ package api
 
 import (
 	"k8s.io/apimachinery/pkg/util/sets"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -72,6 +71,6 @@ type ScaleUpRecommendation struct {
 
 type RecommendationResponse struct {
 	Recommendation Recommendation `json:"recommendation"`
-	RunTime        time.Duration  `json:"runTime"`
+	RunTime        string         `json:"runTime"`
 	Error          string         `json:"error,omitempty"`
 }
