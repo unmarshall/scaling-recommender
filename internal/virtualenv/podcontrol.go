@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/internal/common"
@@ -109,6 +110,7 @@ func (p podControl) CreatePods(ctx context.Context, pods ...*corev1.Pod) error {
 		// remove any priority settings as the virtual environment does not use them.
 		clone.Spec.Priority = nil
 		clone.Spec.PriorityClassName = ""
+		clone.Spec.TerminationGracePeriodSeconds = pointer.Int64(0)
 		errs = errors.Join(errs, p.client.Create(ctx, clone))
 	}
 	return errs

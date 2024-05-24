@@ -89,7 +89,7 @@ func runSimulation(simRequest api.SimulationRequest) (*api.RecommendationRespons
 			fmt.Printf("Error in reading response: %v", err)
 			os.Exit(1)
 		}
-		var recommendationResponse *api.RecommendationResponse
+		recommendationResponse := &api.RecommendationResponse{}
 		if err = json.Unmarshal(readBytes, recommendationResponse); err != nil {
 			fmt.Printf("Error in unmarshalling response: %v", err)
 			os.Exit(1)
