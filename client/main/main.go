@@ -26,7 +26,8 @@ func main() {
 	//	slog.Error("Error in creating simulation request", "error", err)
 	//	os.Exit(1)
 	//}
-	scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenarios.json"))
+	//scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenarios.json"))
+	scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenario_c.json"))
 	dieOnError(err)
 	simRequests, err := util.CreateSimRequests(scenarios)
 	dieOnError(err)

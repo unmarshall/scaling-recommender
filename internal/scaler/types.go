@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/api"
 )
 
@@ -33,8 +34,13 @@ type Recommender interface {
 	Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) Result
 }
 
+type OkResult struct {
+	Recommendation  api.Recommendation
+	UnscheduledPods []client.ObjectKey
+}
+
 type Result struct {
-	Ok  api.Recommendation
+	Ok  OkResult
 	Err error
 }
 
@@ -46,10 +52,11 @@ func ErrorResult(err error) Result {
 	return Result{Err: err}
 }
 
-func OkResult(recommendation api.Recommendation) Result {
-	return Result{Ok: recommendation}
-}
-
-func OkScaleUpResult(recommendations []api.ScaleUpRecommendation) Result {
-	return Result{Ok: api.Recommendation{ScaleUp: recommendations}}
+func OkScaleUpResult(recommendations []api.ScaleUpRecommendation, unscheduledPods []client.ObjectKey) Result {
+	return Result{
+		Ok: OkResult{
+			Recommendation:  api.Recommendation{ScaleUp: recommendations},
+			UnscheduledPods: unscheduledPods,
+		},
+	}
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -70,7 +71,8 @@ type ScaleUpRecommendation struct {
 }
 
 type RecommendationResponse struct {
-	Recommendation Recommendation `json:"recommendation"`
-	RunTime        string         `json:"runTime"`
-	Error          string         `json:"error,omitempty"`
+	Recommendation  Recommendation     `json:"recommendation"`
+	UnscheduledPods []client.ObjectKey `json:"unscheduledPods"`
+	RunTime         string             `json:"runTime"`
+	Error           string             `json:"error,omitempty"`
 }

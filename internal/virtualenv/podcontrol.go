@@ -17,7 +17,7 @@ import (
 
 type PodControl interface {
 	// ListPods will get all pods and apply the given filters to the pods in conjunction. If no filters are given, all pods are returned.
-	ListPods(ctx context.Context, filters ...common.PodFilter) ([]corev1.Pod, error)
+	ListPods(ctx context.Context, namespace string, filters ...common.PodFilter) ([]corev1.Pod, error)
 	// ListPodsMatchingLabels lists all pods matching labels
 	ListPodsMatchingLabels(ctx context.Context, labels map[string]string) ([]corev1.Pod, error)
 	// GetPodsMatchingPodNames returns all pods matching the given pod names. You would use this method over ListPods
@@ -46,8 +46,8 @@ func NewPodControl(cl client.Client) PodControl {
 	}
 }
 
-func (p podControl) ListPods(ctx context.Context, filters ...common.PodFilter) ([]corev1.Pod, error) {
-	return util.ListPods(ctx, p.client, filters...)
+func (p podControl) ListPods(ctx context.Context, namespace string, filters ...common.PodFilter) ([]corev1.Pod, error) {
+	return util.ListPods(ctx, p.client, namespace, filters...)
 }
 
 func (p podControl) ListPodsMatchingLabels(ctx context.Context, labels map[string]string) ([]corev1.Pod, error) {

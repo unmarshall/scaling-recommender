@@ -4,6 +4,7 @@ const (
 	BinPackingSchedulerName = "bin-packing-scheduler"
 	DefaultSchedulerName    = "default-scheduler"
 	DefaultNamespace        = "default"
+	KubeSystemNamespace     = "kube-system"
 )
 
 const (

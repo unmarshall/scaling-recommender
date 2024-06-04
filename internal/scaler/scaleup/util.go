@@ -39,6 +39,12 @@ func computeWasteRatio(node *v1.Node, candidatePods []v1.Pod) float64 {
 			slog.Info("NodPodAssignment: ", "pod", pod.Name, "node", pod.Spec.NodeName, "memory", pod.Spec.Containers[0].Resources.Requests.Memory().MilliValue())
 		}
 	}
+	/*
+		cpuToMemRatio = totalCPU/totalMemory
+
+		cpuWasteRatio + memWasteRatio + (unscheduledRatio * costRatio)
+	*/
+
 	totalMemoryCapacity := node.Status.Capacity.Memory().MilliValue()
 	return float64(totalMemoryCapacity-totalMemoryConsumed) / float64(totalMemoryCapacity)
 }
@@ -68,6 +74,10 @@ func getWinningRunResult(results []*runResult) *runResult {
 }
 
 func printResultsSummary(runNumber int, results []*runResult, winningResult *runResult) {
+	if winningResult == nil || len(results) == 0 {
+		slog.Info("No winning result found")
+		return
+	}
 	slog.Info("Result summary for simulation run", "runNumber", runNumber)
 	slog.Info("-----------------------------------------------------------------------")
 	for _, r := range results {

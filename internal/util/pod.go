@@ -28,6 +28,13 @@ func PodSchedulingFailed(pod *corev1.Pod) bool {
 	return false
 }
 
+func IsSystemPod(pod *corev1.Pod) bool {
+	if podRole, ok := pod.Labels["gardener.cloud/role"]; ok {
+		return podRole == "system-component"
+	}
+	return false
+}
+
 func GetPodNames(pods []*corev1.Pod) []string {
 	return lo.Map[*corev1.Pod, string](pods, func(pod *corev1.Pod, _ int) string {
 		return pod.Name
@@ -35,9 +42,9 @@ func GetPodNames(pods []*corev1.Pod) []string {
 }
 
 // ListPods will get all pods and apply the given filters to the pods in conjunction. If no filters are given, all pods are returned.
-func ListPods(ctx context.Context, cl client.Client, filters ...common.PodFilter) ([]corev1.Pod, error) {
+func ListPods(ctx context.Context, cl client.Client, namespace string, filters ...common.PodFilter) ([]corev1.Pod, error) {
 	pods := &corev1.PodList{}
-	err := cl.List(ctx, pods)
+	err := cl.List(ctx, pods, client.InNamespace(namespace))
 	if err != nil {
 		return nil, err
 	}

@@ -54,8 +54,9 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	}
 	runTime := time.Since(startTime)
 	response := api.RecommendationResponse{
-		Recommendation: result.Ok,
-		RunTime:        fmt.Sprintf("%d millis", runTime.Milliseconds()),
+		Recommendation:  result.Ok.Recommendation,
+		UnscheduledPods: result.Ok.UnscheduledPods,
+		RunTime:         fmt.Sprintf("%d millis", runTime.Milliseconds()),
 	}
 	if err = web.WriteJSON(w, http.StatusOK, response); err != nil {
 		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())

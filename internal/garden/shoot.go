@@ -18,7 +18,7 @@ type ShootAccess interface {
 	// ListNodes will get all nodes and apply the given filters to the nodes in conjunction. If no filters are given, all nodes are returned.
 	ListNodes(ctx context.Context, filter ...common.NodeFilter) ([]corev1.Node, error)
 	// ListPods will get all pods and apply the given filters to the pods in conjunction. If no filters are given, all pods are returned.
-	ListPods(ctx context.Context, filter ...common.PodFilter) ([]corev1.Pod, error)
+	ListPods(ctx context.Context, namespace string, filter ...common.PodFilter) ([]corev1.Pod, error)
 
 	GetClient() client.Client
 }
@@ -51,8 +51,8 @@ func (s *shootAccess) ListNodes(ctx context.Context, filters ...common.NodeFilte
 	return util2.ListNodes(ctx, s.client, filters...)
 }
 
-func (s *shootAccess) ListPods(ctx context.Context, filters ...common.PodFilter) ([]corev1.Pod, error) {
-	return util2.ListPods(ctx, s.client, filters...)
+func (s *shootAccess) ListPods(ctx context.Context, namespace string, filters ...common.PodFilter) ([]corev1.Pod, error) {
+	return util2.ListPods(ctx, s.client, namespace, filters...)
 }
 
 func (s *shootAccess) GetClient() client.Client {

@@ -3,7 +3,7 @@ module unmarshall/scaling-recommender
 go 1.22.1
 
 require (
-	github.com/elankath/scalehist v0.0.0-20240522062629-ad7a4e386cba
+	github.com/elankath/scalehist v0.0.0-20240530045522-164fb45b6ae3
 	github.com/gardener/gardener v1.90.3
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -127,21 +127,20 @@ replace (
 	k8s.io/apimachinery => k8s.io/apimachinery v0.29.3
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.29.3
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.29.3
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.29.3
+	//k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.29.3
 	k8s.io/component-helpers => k8s.io/component-helpers v0.29.3
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.29.3
 	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.29.3
 	k8s.io/endpointslice => k8s.io/endpointslice v0.29.3
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.29.3
+	//k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.29.3
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.29.3
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.29.3
+	//k8s.io/kube-proxy => k8s.io/kube-proxy v0.29.3
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.29.3
 	k8s.io/kubectl => k8s.io/kubectl v0.29.3
 	k8s.io/kubelet => k8s.io/kubelet v0.29.3
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.29.3
-	k8s.io/metrics => k8s.io/metrics v0.29.3
+	//k8s.io/metrics => k8s.io/metrics v0.29.3
 	k8s.io/mount-utils => k8s.io/mount-utils v0.29.3
-	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.29.3
+	//k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.29.3
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.29.3
-
 )

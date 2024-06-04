@@ -90,6 +90,14 @@ func (s *simulationState) updateEligibleNodePools(recommendation *api.ScaleUpRec
 	}
 }
 
+func (s *simulationState) getUnscheduledPodObjectKeys() []client.ObjectKey {
+	objKeys := make([]client.ObjectKey, 0, len(s.unscheduledPods))
+	for _, pod := range s.unscheduledPods {
+		objKeys = append(objKeys, client.ObjectKeyFromObject(pod))
+	}
+	return objKeys
+}
+
 func NewRecommender(vcp virtualenv.ControlPlane, refNodes []corev1.Node, pa pricing.InstancePricingAccess) scaler.Recommender {
 	return &recommender{
 		nc:       vcp.NodeControl(),
@@ -136,8 +144,7 @@ func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest, log
 		r.logger.Info("For scale-up recommender", "runNumber", runNumber, "winning-score", recommendation)
 		recommendations = appendScaleUpRecommendation(recommendations, recommendation)
 	}
-
-	return scaler.OkScaleUpResult(recommendations)
+	return scaler.OkScaleUpResult(recommendations, r.state.getUnscheduledPodObjectKeys())
 }
 
 func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) {
