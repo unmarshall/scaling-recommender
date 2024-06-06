@@ -26,7 +26,7 @@ func NewScaleDownRecommendation(scaleDown []string) api.Recommendation {
 	return api.Recommendation{ScaleDown: scaleDown}
 }
 
-type Factory interface {
+type RecommenderFactory interface {
 	GetRecommender(variant AlgoVariant) Recommender
 }
 

@@ -10,14 +10,14 @@ import (
 	"sync"
 	"time"
 
-	"unmarshall/scaling-recommender/internal/pricing"
-
 	"github.com/samber/lo"
 	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/internal/common"
+	"unmarshall/scaling-recommender/internal/pricing"
+	"unmarshall/scaling-recommender/internal/scaler/scorer"
 	"unmarshall/scaling-recommender/internal/util"
 
 	corev1 "k8s.io/api/core/v1"
@@ -32,14 +32,14 @@ const (
 )
 
 type recommender struct {
-	nc                     virtualenv.NodeControl
-	pc                     virtualenv.PodControl
-	ec                     virtualenv.EventControl
-	pa                     pricing.InstancePricingAccess
-	refNodes               []corev1.Node
-	instanceTypeCostRatios map[string]float64
-	state                  simulationState
-	logger                 slog.Logger
+	nc       virtualenv.NodeControl
+	pc       virtualenv.PodControl
+	ec       virtualenv.EventControl
+	pa       pricing.InstancePricingAccess
+	refNodes []corev1.Node
+	scorer   scorer.Scorer
+	state    simulationState
+	logger   slog.Logger
 }
 
 type nodeScore struct {
@@ -372,18 +372,18 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 	return unscheduledPods, r.pc.CreatePods(ctx, unscheduledPods...)
 }
 
-func (r *recommender) computeNodeScore(scaledNode *corev1.Node, candidatePods []corev1.Pod) nodeScore {
-	costRatio := r.instanceTypeCostRatios[util.GetInstanceType(scaledNode)]
-	wasteRatio := computeWasteRatio(scaledNode, candidatePods)
-	unscheduledRatio := computeUnscheduledRatio(candidatePods)
-	cumulativeScore := wasteRatio + unscheduledRatio*costRatio
-	return nodeScore{
-		wasteRatio:       wasteRatio,
-		unscheduledRatio: unscheduledRatio,
-		costRatio:        costRatio,
-		cumulativeScore:  cumulativeScore,
-	}
-}
+//func (r *recommender) computeNodeScore(scaledNode *corev1.Node, candidatePods []corev1.Pod) nodeScore {
+//	costRatio := r.instanceTypeCostRatios[util.GetInstanceType(scaledNode)]
+//	wasteRatio := computeWasteRatio(scaledNode, candidatePods)
+//	unscheduledRatio := computeUnscheduledRatio(candidatePods)
+//	cumulativeScore := wasteRatio + unscheduledRatio*costRatio
+//	return nodeScore{
+//		wasteRatio:       wasteRatio,
+//		unscheduledRatio: unscheduledRatio,
+//		costRatio:        costRatio,
+//		cumulativeScore:  cumulativeScore,
+//	}
+//}
 
 func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeName string, score nodeScore, pods []corev1.Pod) *runResult {
 	if score.unscheduledRatio == 1.0 {

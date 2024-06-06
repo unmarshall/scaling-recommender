@@ -12,7 +12,7 @@ type factory struct {
 	algos map[scaler.AlgoVariant]scaler.Recommender
 }
 
-func New(ga garden.Access, vcp virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) scaler.Factory {
+func New(ga garden.Access, vcp virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess) scaler.RecommenderFactory {
 	algos := make(map[scaler.AlgoVariant]scaler.Recommender)
 	// Register all scaling algorithms
 	algos[scaler.MultiDimensionScoringScaleUpAlgo] = scaleup.NewRecommender(vcp, ga.GetAllReferenceNodes(), pricingAccess)

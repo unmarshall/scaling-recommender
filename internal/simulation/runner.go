@@ -21,7 +21,7 @@ type Engine interface {
 	GardenAccess() garden.Access
 	VirtualControlPlane() virtualenv.ControlPlane
 	PricingAccess() pricing.InstancePricingAccess
-	RecommenderFactory() scaler.Factory
+	RecommenderFactory() scaler.RecommenderFactory
 	TargetShootCoordinate() app.ShootCoordinate
 }
 
@@ -31,7 +31,7 @@ type engine struct {
 	virtualControlPlane virtualenv.ControlPlane
 	pricingAccess       pricing.InstancePricingAccess
 	targetShootCoord    *app.ShootCoordinate
-	recommenderFactory  scaler.Factory
+	recommenderFactory  scaler.RecommenderFactory
 }
 
 func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate) Engine {
@@ -72,7 +72,7 @@ func (e *engine) PricingAccess() pricing.InstancePricingAccess {
 	return e.pricingAccess
 }
 
-func (e *engine) RecommenderFactory() scaler.Factory {
+func (e *engine) RecommenderFactory() scaler.RecommenderFactory {
 	return e.recommenderFactory
 }
 

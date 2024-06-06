@@ -14,6 +14,7 @@ import (
 type InstancePricingAccess interface {
 	Get3YearReservedPricing(instanceType string) float64
 	ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64
+	ComputeAllCostRatios() map[string]float64
 }
 
 func NewInstancePricingAccess(provider string) (InstancePricingAccess, error) {
