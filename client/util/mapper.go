@@ -3,12 +3,13 @@ package util
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/samber/lo"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"log"
 	"os"
 
-	"github.com/elankath/scalehist"
+	"github.com/samber/lo"
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/elankath/gardener-scalehist"
 	"unmarshall/scaling-recommender/api"
 )
 

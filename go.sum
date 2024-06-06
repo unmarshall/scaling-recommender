@@ -33,8 +33,12 @@ github.com/distribution/reference v0.5.0 h1:/FUIFXtfc/x2gpa5/VGfiGLuOIdYa1t65IKK
 github.com/distribution/reference v0.5.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/elankath/scalehist v0.0.0-20240530045522-164fb45b6ae3 h1:WS2XjnazkuWmm856EHZcGT3EkP8HhC5lTsX7wdNnSgg=
-github.com/elankath/scalehist v0.0.0-20240530045522-164fb45b6ae3/go.mod h1:ZbJ6bEZ93+B8l0yx+ySd5cpixMzuXydybtelC8iYD6w=
+github.com/elankath/gardener-scalehist v0.0.0-20240606060128-93a1294f43ef h1:qc0GdY8NjWq323QFFHu+xi75jUwQSZ0faH26mZxfWIY=
+github.com/elankath/gardener-scalehist v0.0.0-20240606060128-93a1294f43ef/go.mod h1:Bd1HOdPYfDEczSuP+4C9DIaQnhTgmLe2I+ixMM+JZF0=
+github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01 h1:7MK3Z/wcIL5jSStPDcGusAkwn3o8T6qiMqrh++PS0zw=
+github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01/go.mod h1:Bd1HOdPYfDEczSuP+4C9DIaQnhTgmLe2I+ixMM+JZF0=
+github.com/elankath/scalehist v0.0.0-20240531123643-cce361cbb528 h1:o+aLleKShRmvwlP7kO8isB/UTPzjHpAtWKhrdl9joFI=
+github.com/elankath/scalehist v0.0.0-20240531123643-cce361cbb528/go.mod h1:ZbJ6bEZ93+B8l0yx+ySd5cpixMzuXydybtelC8iYD6w=
 github.com/emicklei/go-restful/v3 v3.11.0 h1:rAQeMHw1c7zTmncogyy8VvRZwtkmkZ4FxERmMY4rD+g=
 github.com/emicklei/go-restful/v3 v3.11.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/envoyproxy/protoc-gen-validate v1.0.2 h1:QkIBuU5k+x7/QXPvPPnWXWlCdaBFApVqftFV6k087DA=

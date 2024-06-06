@@ -2,6 +2,7 @@ package factory
 
 import (
 	"log/slog"
+
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/scaler/scaleup"
@@ -16,7 +17,6 @@ func New(ga garden.Access, vcp virtualenv.ControlPlane, logger *slog.Logger) sca
 	algos := make(map[scaler.AlgoVariant]scaler.Recommender)
 	// Register all scaling algorithms
 	algos[scaler.MultiDimensionScoringScaleUpAlgo] = scaleup.NewRecommender(vcp, ga.GetAllReferenceNodes(), logger)
-	//algos[DescendingCostScaleDownAlgo] = scaledown.NewDescendingCostRecommender(vcp.NodeControl(), vcp.PodControl(), vcp.EventControl(), pricingAccess)
 	return &factory{
 		algos: algos,
 	}

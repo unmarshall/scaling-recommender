@@ -3,7 +3,7 @@ module unmarshall/scaling-recommender
 go 1.22.1
 
 require (
-	github.com/elankath/scalehist v0.0.0-20240530045522-164fb45b6ae3
+	github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01
 	github.com/gardener/gardener v1.90.3
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
