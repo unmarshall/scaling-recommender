@@ -8,46 +8,8 @@ import (
 	"time"
 
 	"golang.org/x/exp/rand"
-	"k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/api"
 )
-
-func computeUnscheduledRatio(candidatePods []v1.Pod) float64 {
-	var totalAssignedPods int
-	for _, pod := range candidatePods {
-		if pod.Spec.NodeName != "" {
-			totalAssignedPods++
-		}
-	}
-	return float64(len(candidatePods)-totalAssignedPods) / float64(len(candidatePods))
-}
-
-func computeWasteRatio(node *v1.Node, candidatePods []v1.Pod) float64 {
-	var (
-		targetNodeAssignedPods []v1.Pod
-		totalMemoryConsumed    int64
-	)
-	for _, pod := range candidatePods {
-		if pod.Spec.NodeName == node.Name {
-			targetNodeAssignedPods = append(targetNodeAssignedPods, pod)
-			for _, container := range pod.Spec.Containers {
-				containerMemReq, ok := container.Resources.Requests[v1.ResourceMemory]
-				if ok {
-					totalMemoryConsumed += containerMemReq.MilliValue()
-				}
-			}
-			slog.Info("NodPodAssignment: ", "pod", pod.Name, "node", pod.Spec.NodeName, "memory", pod.Spec.Containers[0].Resources.Requests.Memory().MilliValue())
-		}
-	}
-	/*
-		cpuToMemRatio = totalCPU/totalMemory
-
-		cpuWasteRatio + memWasteRatio + (unscheduledRatio * costRatio)
-	*/
-
-	totalMemoryCapacity := node.Status.Capacity.Memory().MilliValue()
-	return float64(totalMemoryCapacity-totalMemoryConsumed) / float64(totalMemoryCapacity)
-}
 
 func getWinningRunResult(results []*runResult) *runResult {
 	if len(results) == 0 {
@@ -57,13 +19,13 @@ func getWinningRunResult(results []*runResult) *runResult {
 	minScore := math.MaxFloat64
 	var winningRunResults []*runResult
 	for _, v := range results {
-		if v.nodeScore.cumulativeScore < minScore {
+		if v.nodeScore.CumulativeScore < minScore {
 			winner = v
-			minScore = v.nodeScore.cumulativeScore
+			minScore = v.nodeScore.CumulativeScore
 		}
 	}
 	for _, v := range results {
-		if v.nodeScore.cumulativeScore == minScore {
+		if v.nodeScore.CumulativeScore == minScore {
 			winningRunResults = append(winningRunResults, v)
 		}
 	}
