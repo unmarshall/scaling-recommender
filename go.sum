@@ -33,8 +33,6 @@ github.com/distribution/reference v0.5.0 h1:/FUIFXtfc/x2gpa5/VGfiGLuOIdYa1t65IKK
 github.com/distribution/reference v0.5.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/elankath/scalehist v0.0.0-20240522062629-ad7a4e386cba h1:uZ0gW4hTkv47Tiy1OiNqUVfLxf67wOVESiXr8Ak736M=
-github.com/elankath/scalehist v0.0.0-20240522062629-ad7a4e386cba/go.mod h1:ZbJ6bEZ93+B8l0yx+ySd5cpixMzuXydybtelC8iYD6w=
 github.com/elankath/scalehist v0.0.0-20240530045522-164fb45b6ae3 h1:WS2XjnazkuWmm856EHZcGT3EkP8HhC5lTsX7wdNnSgg=
 github.com/elankath/scalehist v0.0.0-20240530045522-164fb45b6ae3/go.mod h1:ZbJ6bEZ93+B8l0yx+ySd5cpixMzuXydybtelC8iYD6w=
 github.com/emicklei/go-restful/v3 v3.11.0 h1:rAQeMHw1c7zTmncogyy8VvRZwtkmkZ4FxERmMY4rD+g=

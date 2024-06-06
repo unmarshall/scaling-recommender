@@ -12,6 +12,15 @@ import (
 	"unmarshall/scaling-recommender/api"
 )
 
+// FAILED SCHEDULING STREAM = {FAILED-PA1, FAILED-PB2, FAILED-PA1, FAILED-PC3, FAILED-PD1....}
+// SCHEDULED STREAM = {SCHEDULED-PA1, SCHEDULED-PB2, SCHEDULED-PC3, ....}
+// SCALE-UP = {TRIGGER-NG1-PA1, TRIGGER-NG1-PB2, TRIGGER-NG2-PC3...}
+// SCALE-DOWN = {..., SCALEDOWN-NG1}
+// HOW TO END SCENARIOS
+// 1. ALL PODS GOT SCHEDULED AFTER RANGE OF TRIGGER SCALE-UPS
+// 2. STOP SCENARIO COALESCING AT THE FIRST SCALE-DOWN
+// 3.
+
 func CreateSimRequests(scenarios []scalehist.Scenario) ([]api.SimulationRequest, error) {
 	return lo.Map(scenarios, func(scenario scalehist.Scenario, index int) api.SimulationRequest {
 		return api.SimulationRequest{

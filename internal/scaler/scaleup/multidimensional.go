@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/pricing"
-	"unmarshall/scaling-recommender/internal/scaler/scorer"
 	"unmarshall/scaling-recommender/internal/util"
 
 	corev1 "k8s.io/api/core/v1"
@@ -32,21 +31,15 @@ const (
 )
 
 type recommender struct {
-	nc       virtualenv.NodeControl
-	pc       virtualenv.PodControl
-	ec       virtualenv.EventControl
-	pa       pricing.InstancePricingAccess
-	refNodes []corev1.Node
-	scorer   scorer.Scorer
-	state    simulationState
-	logger   slog.Logger
-}
-
-type nodeScore struct {
-	wasteRatio       float64
-	unscheduledRatio float64
-	costRatio        float64
-	cumulativeScore  float64
+	nc         virtualenv.NodeControl
+	pc         virtualenv.PodControl
+	ec         virtualenv.EventControl
+	pa         pricing.InstancePricingAccess
+	refNodes   []corev1.Node
+	scorer     scaler.Scorer
+	state      simulationState
+	baseLogger *slog.Logger
+	logger     *slog.Logger
 }
 
 type runResult struct {
@@ -54,7 +47,7 @@ type runResult struct {
 	nodeName        string
 	zone            string
 	instanceType    string
-	nodeScore       nodeScore
+	nodeScore       scaler.NodeScore
 	unscheduledPods []corev1.Pod
 	nodeToPods      map[string][]types.NamespacedName
 	err             error
@@ -98,23 +91,23 @@ func (s *simulationState) getUnscheduledPodObjectKeys() []client.ObjectKey {
 	return objKeys
 }
 
-func NewRecommender(vcp virtualenv.ControlPlane, refNodes []corev1.Node, pa pricing.InstancePricingAccess) scaler.Recommender {
+func NewRecommender(vcp virtualenv.ControlPlane, refNodes []corev1.Node, baseLogger *slog.Logger) scaler.Recommender {
 	return &recommender{
-		nc:       vcp.NodeControl(),
-		pc:       vcp.PodControl(),
-		ec:       vcp.EventControl(),
-		pa:       pa,
-		refNodes: refNodes,
+		nc:         vcp.NodeControl(),
+		pc:         vcp.PodControl(),
+		ec:         vcp.EventControl(),
+		refNodes:   refNodes,
+		baseLogger: baseLogger,
 	}
 }
 
-func (r *recommender) Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) scaler.Result {
+func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.SimulationRequest) scaler.Result {
 	var (
 		recommendations []api.ScaleUpRecommendation
 		runNumber       int
 	)
-	r.logger = logger
-	r.instanceTypeCostRatios = r.pa.ComputeCostRatiosForInstanceTypes(simReq.NodePools)
+	r.scorer = scorer
+	r.logger = r.baseLogger.With("id", simReq.ID)
 	r.initializeSimulationState(simReq)
 	if err := r.initializeVirtualCluster(ctx); err != nil {
 		return scaler.ErrorResult(err)
@@ -269,7 +262,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		ns := r.computeNodeScore(node, simRunCandidatePods)
+		ns := r.scorer.Compute(node, simRunCandidatePods)
 		resultCh <- r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node.Name, ns, simRunCandidatePods)
 	}
 }
@@ -372,21 +365,8 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 	return unscheduledPods, r.pc.CreatePods(ctx, unscheduledPods...)
 }
 
-//func (r *recommender) computeNodeScore(scaledNode *corev1.Node, candidatePods []corev1.Pod) nodeScore {
-//	costRatio := r.instanceTypeCostRatios[util.GetInstanceType(scaledNode)]
-//	wasteRatio := computeWasteRatio(scaledNode, candidatePods)
-//	unscheduledRatio := computeUnscheduledRatio(candidatePods)
-//	cumulativeScore := wasteRatio + unscheduledRatio*costRatio
-//	return nodeScore{
-//		wasteRatio:       wasteRatio,
-//		unscheduledRatio: unscheduledRatio,
-//		costRatio:        costRatio,
-//		cumulativeScore:  cumulativeScore,
-//	}
-//}
-
-func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeName string, score nodeScore, pods []corev1.Pod) *runResult {
-	if score.unscheduledRatio == 1.0 {
+func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeName string, score scaler.NodeScore, pods []corev1.Pod) *runResult {
+	if score.UnscheduledRatio == 1.0 {
 		return &runResult{}
 	}
 	unscheduledPods := make([]corev1.Pod, 0, len(pods))

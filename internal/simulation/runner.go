@@ -34,7 +34,7 @@ type engine struct {
 	recommenderFactory  scaler.RecommenderFactory
 }
 
-func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate) Engine {
+func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger) Engine {
 	return &engine{
 		server: http.Server{
 			Addr: ":8080",
@@ -43,7 +43,7 @@ func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPla
 		virtualControlPlane: vControlPlane,
 		pricingAccess:       pricingAccess,
 		targetShootCoord:    targetShootCoord,
-		recommenderFactory:  factory.New(gardenAccess, vControlPlane, pricingAccess),
+		recommenderFactory:  factory.New(gardenAccess, vControlPlane, logger),
 	}
 }
 

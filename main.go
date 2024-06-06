@@ -27,7 +27,7 @@ func main() {
 	utilruntime.Must(seedmanagementv1alpha1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(machinev1alpha1.AddToScheme(scheme.Scheme))
 	ctx := setupSignalHandler()
-
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	appConfig, err := parseCmdArgs()
 	if err != nil {
 		app.ExitAppWithError(1, fmt.Errorf("failed to parse command line arguments: %w", err))
@@ -37,21 +37,21 @@ func main() {
 		app.ExitAppWithError(1, fmt.Errorf("invalid configuration: %w", err))
 	}
 
-	slog.Info("starting scaling recommender environment", "appConfig", appConfig)
+	logger.Info("starting scaling recommender environment", "appConfig", appConfig)
 	gardenAccess := initializeGardenAccess(ctx, appConfig)
 	vCluster := startVirtualCluster(ctx, appConfig)
 	defer func() {
-		slog.Info("shutting down virtual cluster...")
+		logger.Info("shutting down virtual cluster...")
 		if err = vCluster.Stop(); err != nil {
-			slog.Error("failed to stop virtual cluster", "error", err)
+			logger.Error("failed to stop virtual cluster", "error", err)
 		}
 	}()
-	slog.Info("Initializing instance pricing access...")
+	logger.Info("Initializing instance pricing access...")
 	pricingAccess, err := pricing.NewInstancePricingAccess(appConfig.Provider)
 	if err != nil {
 		app.ExitAppWithError(1, fmt.Errorf("failed to create instance pricing access: %w", err))
 	}
-	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, appConfig.TargetShoot)
+	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, appConfig.TargetShoot, logger)
 	<-ctx.Done()
 }
 
@@ -80,8 +80,8 @@ func initializeGardenAccess(ctx context.Context, appConfig app.Config) garden.Ac
 	return gardenAccess
 }
 
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate) simulation.Engine {
-	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord)
+func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger) simulation.Engine {
+	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord, logger)
 	slog.Info("Triggering start of scenario executor...")
 	go func() {
 		defer scenarioExecutorEngine.Shutdown()

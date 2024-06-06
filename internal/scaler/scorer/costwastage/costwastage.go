@@ -6,7 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/pricing"
-	"unmarshall/scaling-recommender/internal/scaler/scorer"
+	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/util"
 )
 
@@ -14,19 +14,19 @@ type _scorer struct {
 	instanceTypeCostRatio map[string]float64
 }
 
-func NewScorer(pa pricing.InstancePricingAccess, nodePools []api.NodePool) scorer.Scorer {
+func NewScorer(pa pricing.InstancePricingAccess, nodePools []api.NodePool) scaler.Scorer {
 	instanceTypeCostRatios := pa.ComputeCostRatiosForInstanceTypes(nodePools)
 	return &_scorer{
 		instanceTypeCostRatio: instanceTypeCostRatios,
 	}
 }
 
-func (s *_scorer) Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) scorer.NodeScore {
+func (s *_scorer) Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) scaler.NodeScore {
 	costRatio := s.instanceTypeCostRatio[util.GetInstanceType(scaledNode)]
 	wasteRatio := computeWasteRatio(scaledNode, candidatePods)
 	unscheduledRatio := computeUnscheduledRatio(candidatePods)
 	cumulativeScore := wasteRatio + unscheduledRatio*costRatio
-	return scorer.NodeScore{
+	return scaler.NodeScore{
 		WasteRatio:       wasteRatio,
 		UnscheduledRatio: unscheduledRatio,
 		CostRatio:        costRatio,

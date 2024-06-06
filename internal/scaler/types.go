@@ -3,9 +3,8 @@ package scaler
 import (
 	"context"
 	"io"
-	"log/slog"
+	corev1 "k8s.io/api/core/v1"
 	"net/http"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/api"
 )
@@ -16,6 +15,17 @@ const (
 	MultiDimensionScoringScaleUpAlgo AlgoVariant = "multi-dimensional-scoring-scale-up"
 	DescendingCostScaleDownAlgo      AlgoVariant = "descending-cost-scale-down"
 )
+
+type NodeScore struct {
+	WasteRatio       float64
+	UnscheduledRatio float64
+	CostRatio        float64
+	CumulativeScore  float64
+}
+
+type Scorer interface {
+	Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) NodeScore
+}
 
 type LogWriterFlusher interface {
 	io.Writer
@@ -31,7 +41,7 @@ type RecommenderFactory interface {
 }
 
 type Recommender interface {
-	Run(ctx context.Context, simReq api.SimulationRequest, logger slog.Logger) Result
+	Run(ctx context.Context, scorer Scorer, simReq api.SimulationRequest) Result
 }
 
 type OkResult struct {
