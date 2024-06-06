@@ -1,4 +1,4 @@
-package costwastage
+package costcpumemwastage
 
 import (
 	"log/slog"
@@ -22,22 +22,24 @@ func NewScorer(pa pricing.InstancePricingAccess, nodePools []api.NodePool) scale
 }
 
 func (s *_scorer) Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) scaler.NodeScore {
-	costRatio := s.instanceTypeCostRatio[util.GetInstanceType(scaledNode)]
-	wasteRatio := computeWasteRatio(scaledNode, candidatePods)
+	costRatio := s.instanceTypeCostRatio[util.GetInstanceType(scaledNode.Labels)]
+	memWasteRatio, cpuWasteRatio := computeCpuAndMemWasteRatios(scaledNode, candidatePods)
 	unscheduledRatio := computeUnscheduledRatio(candidatePods)
-	cumulativeScore := wasteRatio + unscheduledRatio*costRatio
+	cumulativeScore := memWasteRatio + unscheduledRatio*costRatio
 	return scaler.NodeScore{
-		WasteRatio:       wasteRatio,
+		MemWasteRatio:    memWasteRatio,
+		CpuWasteRatio:    cpuWasteRatio,
 		UnscheduledRatio: unscheduledRatio,
 		CostRatio:        costRatio,
 		CumulativeScore:  cumulativeScore,
 	}
 }
 
-func computeWasteRatio(node *corev1.Node, candidatePods []corev1.Pod) float64 {
+func computeCpuAndMemWasteRatios(node *corev1.Node, candidatePods []corev1.Pod) (float64, float64) {
 	var (
 		targetNodeAssignedPods []corev1.Pod
 		totalMemoryConsumed    int64
+		totalCPUConsumed       int64
 	)
 	for _, pod := range candidatePods {
 		if pod.Spec.NodeName == node.Name {
@@ -47,12 +49,17 @@ func computeWasteRatio(node *corev1.Node, candidatePods []corev1.Pod) float64 {
 				if ok {
 					totalMemoryConsumed += containerMemReq.MilliValue()
 				}
+				containerCpuReq, ok := container.Resources.Requests[corev1.ResourceCPU]
+				if ok {
+					totalCPUConsumed += containerCpuReq.MilliValue()
+				}
 			}
 			slog.Info("NodPodAssignment: ", "pod", pod.Name, "node", pod.Spec.NodeName, "memory", pod.Spec.Containers[0].Resources.Requests.Memory().MilliValue())
 		}
 	}
 	totalMemoryCapacity := node.Status.Capacity.Memory().MilliValue()
-	return float64(totalMemoryCapacity-totalMemoryConsumed) / float64(totalMemoryCapacity)
+	totalCPUCapacity := node.Status.Capacity.Cpu().MilliValue()
+	return float64(totalMemoryCapacity-totalMemoryConsumed) / float64(totalMemoryCapacity), float64(totalCPUCapacity-totalCPUConsumed) / float64(totalCPUCapacity)
 }
 
 func computeUnscheduledRatio(candidatePods []corev1.Pod) float64 {

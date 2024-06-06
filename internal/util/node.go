@@ -2,10 +2,10 @@ package util
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/api"
@@ -13,6 +13,18 @@ import (
 )
 
 const ExistingNodeInLiveClusterLabelKey = "app.kubernetes.io/existing-node"
+
+type ReferenceNodes []corev1.Node
+
+func (r ReferenceNodes) GetReferenceNode(instanceType string) (*corev1.Node, error) {
+	filteredNodes := lo.Filter(r, func(n corev1.Node, _ int) bool {
+		return GetInstanceType(n.GetLabels()) == instanceType
+	})
+	if len(filteredNodes) == 0 {
+		return nil, fmt.Errorf("no reference node found for instance type: %s", instanceType)
+	}
+	return &filteredNodes[0], nil
+}
 
 func ExistingNodeInLiveCluster(node *corev1.Node) bool {
 	return metav1.HasLabel(node.ObjectMeta, ExistingNodeInLiveClusterLabelKey)
@@ -55,9 +67,14 @@ func evaluateNodeFilters(node *corev1.Node, filters []common.NodeFilter) bool {
 	return true
 }
 
-func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) []*corev1.Node {
+func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, refNodes ReferenceNodes) ([]*corev1.Node, error) {
 	nodes := make([]*corev1.Node, 0, len(nodeInfos))
 	for _, np := range nodeInfos {
+		refNode, err := refNodes.GetReferenceNode(GetInstanceType(np.Labels))
+		if err != nil {
+			return nil, err
+		}
+
 		node := &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      np.Name,
@@ -68,23 +85,14 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) []*corev1.Node {
 				Taints: np.Taints,
 			},
 			Status: corev1.NodeStatus{
-				Allocatable: setMaxAllowedPods(np.Allocatable),
-				Capacity:    setMaxAllowedPods(np.Capacity),
+				Allocatable: refNode.Status.Allocatable,
+				Capacity:    refNode.Status.Capacity,
 				Phase:       corev1.NodeRunning,
 			},
 		}
 		nodes = append(nodes, node)
 	}
-	return nodes
-}
-
-func setMaxAllowedPods(resourceList corev1.ResourceList) corev1.ResourceList {
-	return corev1.ResourceList{
-		corev1.ResourcePods:             resource.MustParse("110"),
-		corev1.ResourceCPU:              resourceList[corev1.ResourceCPU],
-		corev1.ResourceMemory:           resourceList[corev1.ResourceMemory],
-		corev1.ResourceEphemeralStorage: resourceList[corev1.ResourceEphemeralStorage],
-	}
+	return nodes, nil
 }
 
 func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {
@@ -135,6 +143,6 @@ func doConstructNodeFromRefNode(refNode *corev1.Node, newNodeName string, labels
 	}
 }
 
-func GetInstanceType(node *corev1.Node) string {
-	return node.Labels[common.InstanceTypeLabelKey]
+func GetInstanceType(labels map[string]string) string {
+	return labels[common.InstanceTypeLabelKey]
 }

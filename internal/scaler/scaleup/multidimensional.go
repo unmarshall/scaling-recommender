@@ -35,7 +35,7 @@ type recommender struct {
 	pc         virtualenv.PodControl
 	ec         virtualenv.EventControl
 	pa         pricing.InstancePricingAccess
-	refNodes   []corev1.Node
+	refNodes   util.ReferenceNodes
 	scorer     scaler.Scorer
 	state      simulationState
 	baseLogger *slog.Logger
@@ -108,7 +108,9 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 	)
 	r.scorer = scorer
 	r.logger = r.baseLogger.With("id", simReq.ID)
-	r.initializeSimulationState(simReq)
+	if err := r.initializeSimulationState(simReq); err != nil {
+		return scaler.ErrorResult(err)
+	}
 	if err := r.initializeVirtualCluster(ctx); err != nil {
 		return scaler.ErrorResult(err)
 	}
@@ -140,10 +142,12 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 	return scaler.OkScaleUpResult(recommendations, r.state.getUnscheduledPodObjectKeys())
 }
 
-func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) {
+func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) error {
 	pods := util.ConstructPodsFromPodInfos(simReq.Pods, util.NilOr(simReq.PodOrder, common.SortDescending))
-	nodes := util.ConstructNodesFromNodeInfos(simReq.Nodes)
-
+	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes, r.refNodes)
+	if err != nil {
+		return err
+	}
 	r.state.unscheduledPods, r.state.scheduledPods = util.SplitScheduledAndUnscheduledPods(pods)
 	r.state.originalUnscheduledPods = lo.SliceToMap[*corev1.Pod, string, *corev1.Pod](r.state.unscheduledPods, func(pod *corev1.Pod) (string, *corev1.Pod) {
 		return pod.Name, pod
@@ -152,16 +156,7 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) {
 		return np.Name, np
 	})
 	r.state.existingNodes = nodes
-}
-
-func (r *recommender) getReferenceNode(instanceType string) (*corev1.Node, error) {
-	filteredNodes := lo.Filter(r.refNodes, func(n corev1.Node, _ int) bool {
-		return util.GetInstanceType(&n) == instanceType
-	})
-	if len(filteredNodes) == 0 {
-		return nil, fmt.Errorf("no reference node found for instance type: %s", instanceType)
-	}
-	return &filteredNodes[0], nil
+	return nil
 }
 
 func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult {
@@ -230,7 +225,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 				return
 			}
 		}
-		refNode, err := r.getReferenceNode(nodePool.InstanceType)
+		refNode, err := r.refNodes.GetReferenceNode(nodePool.InstanceType)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
@@ -251,12 +246,12 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		scheduledPodNames, unschedulePodNames, err := r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second)
+		scheduledPodNames, unSchedulePodNames, err := r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}
-		slog.Info("Received Pod scheduling events", "scheduledPodNames", scheduledPodNames, "unschedulePodNames", unschedulePodNames)
+		slog.Info("Received Pod scheduling events", "scheduledPodNames", scheduledPodNames.UnsortedList(), "unSchedulePodNames", unSchedulePodNames.UnsortedList())
 		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, util.GetPodNames(unscheduledPods)...)
 		if err != nil {
 			resultCh <- errorRunResult(err)
@@ -422,7 +417,7 @@ func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context,
 }
 
 func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
-	refNode, err := r.getReferenceNode(winningRunResult.instanceType)
+	refNode, err := r.refNodes.GetReferenceNode(winningRunResult.instanceType)
 	if err != nil {
 		return nil, err
 	}

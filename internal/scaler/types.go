@@ -3,8 +3,9 @@ package scaler
 import (
 	"context"
 	"io"
-	corev1 "k8s.io/api/core/v1"
 	"net/http"
+
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/api"
 )
@@ -17,7 +18,8 @@ const (
 )
 
 type NodeScore struct {
-	WasteRatio       float64
+	MemWasteRatio    float64
+	CpuWasteRatio    float64
 	UnscheduledRatio float64
 	CostRatio        float64
 	CumulativeScore  float64

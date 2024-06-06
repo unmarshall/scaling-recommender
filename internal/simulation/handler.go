@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"os"
 	"time"
-	"unmarshall/scaling-recommender/internal/scaler/scorer/costwastage"
 
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler"
+	"unmarshall/scaling-recommender/internal/scaler/scorer/costcpumemwastage"
 	"unmarshall/scaling-recommender/internal/simulation/web"
 )
 
@@ -48,7 +48,8 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 
 	recommender := h.engine.RecommenderFactory().GetRecommender(scaler.MultiDimensionScoringScaleUpAlgo)
 	startTime := time.Now()
-	scorer := costwastage.NewScorer(h.engine.PricingAccess(), simRequest.NodePools)
+	//scorer := costmemwastage.NewScorer(h.engine.PricingAccess(), simRequest.NodePools)
+	scorer := costcpumemwastage.NewScorer(h.engine.PricingAccess(), simRequest.NodePools)
 	result := recommender.Run(r.Context(), scorer, *simRequest)
 	if result.IsError() {
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
