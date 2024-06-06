@@ -190,7 +190,7 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
 		runRef := lo.T2(simRunKey, nodePool.Name+"-"+strconv.Itoa(runNum))
-		r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
+		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
 	wg.Wait()
 	close(resultCh)
