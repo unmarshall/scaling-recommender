@@ -23,9 +23,9 @@ func (sc ShootCoordinate) GetNamespace() string {
 type Config struct {
 	Garden           string
 	ReferenceShoot   ShootCoordinate
-	TargetShoot      *ShootCoordinate
-	BinaryAssetsPath string
 	Provider         string
+	BinaryAssetsPath string
+	KubeConfigPath   string
 }
 
 type Exit struct {

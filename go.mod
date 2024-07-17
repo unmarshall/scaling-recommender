@@ -1,6 +1,8 @@
 module unmarshall/scaling-recommender
 
-go 1.22.1
+go 1.22.2
+
+toolchain go1.22.5
 
 require (
 	github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01
@@ -8,12 +10,12 @@ require (
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/samber/lo v1.39.0
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
+	github.com/unmarshall/kvcl v0.0.0-20240717113113-62981b259468
+	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.29.3
-	k8s.io/apimachinery v0.30.0
+	k8s.io/api v0.30.2
+	k8s.io/apimachinery v0.30.2
 	k8s.io/client-go v0.29.3
-	k8s.io/kubernetes v1.29.3
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	sigs.k8s.io/controller-runtime v0.17.2
 )
@@ -88,7 +90,7 @@ require (
 	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
@@ -113,8 +115,9 @@ require (
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kms v0.29.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/kube-scheduler v0.0.0 // indirect
+	k8s.io/kube-scheduler v0.29.3 // indirect
 	k8s.io/kubelet v0.29.3 // indirect
+	k8s.io/kubernetes v1.29.3 // indirect
 	k8s.io/mount-utils v0.0.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.28.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect

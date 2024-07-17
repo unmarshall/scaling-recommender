@@ -8,17 +8,19 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"unmarshall/scaling-recommender/internal/simulation"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	seedmanagementv1alpha1 "github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
+	kvclapi "github.com/unmarshall/kvcl/api"
+	kvcl "github.com/unmarshall/kvcl/pkg/control"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"unmarshall/scaling-recommender/internal/app"
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/pricing"
-	"unmarshall/scaling-recommender/internal/simulation"
-	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
 func main() {
@@ -51,12 +53,12 @@ func main() {
 	if err != nil {
 		app.ExitAppWithError(1, fmt.Errorf("failed to create instance pricing access: %w", err))
 	}
-	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, appConfig.TargetShoot, logger)
+	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, nil, logger)
 	<-ctx.Done()
 }
 
-func startVirtualCluster(ctx context.Context, appConfig app.Config) virtualenv.ControlPlane {
-	vCluster := virtualenv.NewControlPlane(appConfig.BinaryAssetsPath)
+func startVirtualCluster(ctx context.Context, appConfig app.Config) kvclapi.ControlPlane {
+	vCluster := kvcl.NewControlPlane(appConfig.BinaryAssetsPath, appConfig.KubeConfigPath)
 	if err := vCluster.Start(ctx); err != nil {
 		slog.Error("failed to start virtual cluster", "error", err)
 		os.Exit(1)
@@ -80,7 +82,7 @@ func initializeGardenAccess(ctx context.Context, appConfig app.Config) garden.Ac
 	return gardenAccess
 }
 
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger) simulation.Engine {
+func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster kvclapi.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger) simulation.Engine {
 	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord, logger)
 	slog.Info("Triggering start of scenario executor...")
 	go func() {
@@ -104,17 +106,13 @@ func setupSignalHandler() context.Context {
 }
 
 func parseCmdArgs() (app.Config, error) {
-	config := app.Config{
-		TargetShoot: &app.ShootCoordinate{},
-	}
+	config := app.Config{}
 	args := os.Args[1:]
 	fs := flag.CommandLine
 	fs.StringVar(&config.Garden, "garden", "", "name of the garden")
 	fs.StringVar(&config.BinaryAssetsPath, "binary-assets-path", "", "path to the binary assets (kube-apiserver, etcd)")
 	fs.StringVar(&config.ReferenceShoot.Project, "reference-shoot-project", "", "project of the reference shoot")
 	fs.StringVar(&config.ReferenceShoot.Name, "reference-shoot-name", "", "name of the reference shoot")
-	fs.StringVar(&config.TargetShoot.Project, "target-shoot-project", "", "project of the target shoot")
-	fs.StringVar(&config.TargetShoot.Name, "target-shoot-name", "", "name of the target shoot")
 	fs.StringVar(&config.Provider, "provider", "", "provider of the target shoot")
 	if err := fs.Parse(args); err != nil {
 		return config, err
@@ -134,6 +132,9 @@ func validateConfig(config app.Config) error {
 	}
 	if config.Provider == "" {
 		return fmt.Errorf("provider is required")
+	}
+	if config.KubeConfigPath == "" {
+		return fmt.Errorf("kubeconfig path is required")
 	}
 	return nil
 }
