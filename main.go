@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"unmarshall/scaling-recommender/internal/scaler/scorer"
 	"unmarshall/scaling-recommender/internal/simulation"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -53,7 +54,7 @@ func main() {
 	if err != nil {
 		app.ExitAppWithError(1, fmt.Errorf("failed to create instance pricing access: %w", err))
 	}
-	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, nil, logger)
+	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, nil, logger, appConfig.ScoringStrategy)
 	<-ctx.Done()
 }
 
@@ -82,8 +83,8 @@ func initializeGardenAccess(ctx context.Context, appConfig app.Config) garden.Ac
 	return gardenAccess
 }
 
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster kvclapi.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger) simulation.Engine {
-	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord, logger)
+func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster kvclapi.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger, scoringStrategy string) simulation.Engine {
+	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord, logger, scoringStrategy)
 	slog.Info("Triggering start of scenario executor...")
 	go func() {
 		defer scenarioExecutorEngine.Shutdown()
@@ -114,6 +115,7 @@ func parseCmdArgs() (app.Config, error) {
 	fs.StringVar(&config.ReferenceShoot.Project, "reference-shoot-project", "", "project of the reference shoot")
 	fs.StringVar(&config.ReferenceShoot.Name, "reference-shoot-name", "", "name of the reference shoot")
 	fs.StringVar(&config.Provider, "provider", "", "provider of the target shoot")
+	fs.StringVar(&config.ScoringStrategy, "scoring-strategy", "costcpumemwaste", "scoring strategy")
 	if err := fs.Parse(args); err != nil {
 		return config, err
 	}
@@ -135,6 +137,9 @@ func validateConfig(config app.Config) error {
 	}
 	if config.KubeConfigPath == "" {
 		return fmt.Errorf("kubeconfig path is required")
+	}
+	if err := scorer.ValidateScoringStrategy(config.ScoringStrategy); err != nil {
+		return err
 	}
 	return nil
 }

@@ -14,6 +14,7 @@ import (
 type InstancePricingAccess interface {
 	Get3YearReservedPricing(instanceType string) float64
 	ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64
+	GetCostForInstanceTypes(nodePool []api.NodePool) map[string]float64
 }
 
 func NewInstancePricingAccess(provider string) (InstancePricingAccess, error) {
@@ -48,6 +49,14 @@ func (a *access) ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map
 		instanceTypeCostRatios[np.InstanceType] = price / totalCost
 	}
 	return instanceTypeCostRatios
+}
+
+func (a *access) GetCostForInstanceTypes(nodePool []api.NodePool) map[string]float64 {
+	instanceTypeCosts := make(map[string]float64)
+	for _, np := range nodePool {
+		instanceTypeCosts[np.InstanceType] = a.Get3YearReservedPricing(np.InstanceType)
+	}
+	return instanceTypeCosts
 }
 
 func (a *access) initializeProviderPricing() (err error) {

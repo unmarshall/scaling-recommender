@@ -22,7 +22,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler"
-	"unmarshall/scaling-recommender/internal/virtualenv"
+
+	kvclapi "github.com/unmarshall/kvcl/api"
+	kvcl "github.com/unmarshall/kvcl/pkg/control"
 )
 
 const (
@@ -31,9 +33,9 @@ const (
 )
 
 type recommender struct {
-	nc         virtualenv.NodeControl
-	pc         virtualenv.PodControl
-	ec         virtualenv.EventControl
+	nc         kvclapi.NodeControl
+	pc         kvclapi.PodControl
+	ec         kvclapi.EventControl
 	pa         pricing.InstancePricingAccess
 	refNodes   util.ReferenceNodes
 	scorer     scaler.Scorer
@@ -91,7 +93,7 @@ func (s *simulationState) getUnscheduledPodObjectKeys() []client.ObjectKey {
 	return objKeys
 }
 
-func NewRecommender(vcp virtualenv.ControlPlane, refNodes []corev1.Node, baseLogger *slog.Logger) scaler.Recommender {
+func NewRecommender(vcp kvclapi.ControlPlane, refNodes []corev1.Node, baseLogger *slog.Logger) scaler.Recommender {
 	return &recommender{
 		nc:         vcp.NodeControl(),
 		pc:         vcp.PodControl(),
@@ -235,7 +237,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		if err = virtualenv.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
+		if err = kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}
@@ -287,7 +289,7 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		}
 		clonedNodes = append(clonedNodes, nodeCopy)
 	}
-	if err := virtualenv.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, clonedNodes...); err != nil {
+	if err := kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, clonedNodes...); err != nil {
 		return err
 	}
 
@@ -446,7 +448,7 @@ func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, w
 	if err = r.pc.CreatePods(ctx, scheduledPods...); err != nil {
 		return nil, err
 	}
-	if err = virtualenv.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
+	if err = kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
 		return nil, err
 	}
 	return util.GetPodNames(scheduledPods), nil

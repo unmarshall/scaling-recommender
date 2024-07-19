@@ -26,6 +26,7 @@ type Config struct {
 	Provider         string
 	BinaryAssetsPath string
 	KubeConfigPath   string
+	ScoringStrategy  string
 }
 
 type Exit struct {

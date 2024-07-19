@@ -9,32 +9,34 @@ import (
 	"unmarshall/scaling-recommender/internal/app"
 	"unmarshall/scaling-recommender/internal/scaler/factory"
 
+	kvclapi "github.com/unmarshall/kvcl/api"
 	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
-	"unmarshall/scaling-recommender/internal/virtualenv"
 )
 
 type Engine interface {
 	Run()
 	Shutdown()
 	GardenAccess() garden.Access
-	VirtualControlPlane() virtualenv.ControlPlane
+	VirtualControlPlane() kvclapi.ControlPlane
 	PricingAccess() pricing.InstancePricingAccess
 	RecommenderFactory() scaler.RecommenderFactory
 	TargetShootCoordinate() app.ShootCoordinate
+	ScoringStrategy() string
 }
 
 type engine struct {
 	server              http.Server
 	gardenAccess        garden.Access
-	virtualControlPlane virtualenv.ControlPlane
+	virtualControlPlane kvclapi.ControlPlane
 	pricingAccess       pricing.InstancePricingAccess
 	targetShootCoord    *app.ShootCoordinate
 	recommenderFactory  scaler.RecommenderFactory
+	scoringStrategy     string
 }
 
-func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger) Engine {
+func NewExecutor(gardenAccess garden.Access, vControlPlane kvclapi.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger, scoringStrategy string) Engine {
 	return &engine{
 		server: http.Server{
 			Addr: ":8080",
@@ -44,6 +46,7 @@ func NewExecutor(gardenAccess garden.Access, vControlPlane virtualenv.ControlPla
 		pricingAccess:       pricingAccess,
 		targetShootCoord:    targetShootCoord,
 		recommenderFactory:  factory.New(gardenAccess, vControlPlane, logger),
+		scoringStrategy:     scoringStrategy,
 	}
 }
 
@@ -64,7 +67,7 @@ func (e *engine) GardenAccess() garden.Access {
 	return e.gardenAccess
 }
 
-func (e *engine) VirtualControlPlane() virtualenv.ControlPlane {
+func (e *engine) VirtualControlPlane() kvclapi.ControlPlane {
 	return e.virtualControlPlane
 }
 
@@ -78,6 +81,10 @@ func (e *engine) RecommenderFactory() scaler.RecommenderFactory {
 
 func (e *engine) TargetShootCoordinate() app.ShootCoordinate {
 	return *e.targetShootCoord
+}
+
+func (e *engine) ScoringStrategy() string {
+	return e.scoringStrategy
 }
 
 func (e *engine) routes() *http.ServeMux {
