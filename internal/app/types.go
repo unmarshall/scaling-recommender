@@ -19,16 +19,6 @@ func (sc ShootCoordinate) GetNamespace() string {
 	return fmt.Sprintf("garden-%s", sc.Project)
 }
 
-// Config is the application configuration.
-type Config struct {
-	Garden           string
-	ReferenceShoot   ShootCoordinate
-	Provider         string
-	BinaryAssetsPath string
-	KubeConfigPath   string
-	ScoringStrategy  string
-}
-
 type Exit struct {
 	Err  error
 	Code int

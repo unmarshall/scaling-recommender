@@ -37,7 +37,6 @@ type recommender struct {
 	pc         kvclapi.PodControl
 	ec         kvclapi.EventControl
 	pa         pricing.InstancePricingAccess
-	refNodes   util.ReferenceNodes
 	scorer     scaler.Scorer
 	state      simulationState
 	baseLogger *slog.Logger
@@ -93,12 +92,11 @@ func (s *simulationState) getUnscheduledPodObjectKeys() []client.ObjectKey {
 	return objKeys
 }
 
-func NewRecommender(vcp kvclapi.ControlPlane, refNodes []corev1.Node, baseLogger *slog.Logger) scaler.Recommender {
+func NewRecommender(vcp kvclapi.ControlPlane, baseLogger *slog.Logger) scaler.Recommender {
 	return &recommender{
 		nc:         vcp.NodeControl(),
 		pc:         vcp.PodControl(),
 		ec:         vcp.EventControl(),
-		refNodes:   refNodes,
 		baseLogger: baseLogger,
 	}
 }

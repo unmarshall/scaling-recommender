@@ -8,20 +8,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler/scorer"
 	"unmarshall/scaling-recommender/internal/simulation"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	seedmanagementv1alpha1 "github.com/gardener/gardener/pkg/apis/seedmanagement/v1alpha1"
 	machinev1alpha1 "github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
-	kvclapi "github.com/unmarshall/kvcl/api"
-	kvcl "github.com/unmarshall/kvcl/pkg/control"
-
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"unmarshall/scaling-recommender/internal/app"
-	"unmarshall/scaling-recommender/internal/garden"
-	"unmarshall/scaling-recommender/internal/pricing"
 )
 
 func main() {
@@ -41,56 +37,19 @@ func main() {
 	}
 
 	logger.Info("starting scaling recommender environment", "appConfig", appConfig)
-	gardenAccess := initializeGardenAccess(ctx, appConfig)
-	vCluster := startVirtualCluster(ctx, appConfig)
-	defer func() {
-		logger.Info("shutting down virtual cluster...")
-		if err = vCluster.Stop(); err != nil {
-			logger.Error("failed to stop virtual cluster", "error", err)
-		}
-	}()
-	logger.Info("Initializing instance pricing access...")
-	pricingAccess, err := pricing.NewInstancePricingAccess(appConfig.Provider)
-	if err != nil {
-		app.ExitAppWithError(1, fmt.Errorf("failed to create instance pricing access: %w", err))
-	}
-	startScenarioExecutorEngine(gardenAccess, vCluster, pricingAccess, nil, logger, appConfig.ScoringStrategy)
+	startExecutorEngine(ctx, appConfig, logger)
 	<-ctx.Done()
 }
 
-func startVirtualCluster(ctx context.Context, appConfig app.Config) kvclapi.ControlPlane {
-	vCluster := kvcl.NewControlPlane(appConfig.BinaryAssetsPath, appConfig.KubeConfigPath)
-	if err := vCluster.Start(ctx); err != nil {
-		slog.Error("failed to start virtual cluster", "error", err)
-		os.Exit(1)
-	}
-	slog.Info("virtual cluster started successfully")
-	return vCluster
-}
-
-func initializeGardenAccess(ctx context.Context, appConfig app.Config) garden.Access {
-	slog.Info("initializing garden access ...", "garden", appConfig.Garden)
-	gardenAccess, err := garden.NewAccess(appConfig.Garden)
-	if err != nil {
-		slog.Error("failed to create garden access", "error", err)
-		os.Exit(1)
-	}
-	slog.Info("syncing reference nodes from shoot", "garden", appConfig.Garden, "referenceShoot", appConfig.ReferenceShoot)
-	if err = gardenAccess.SyncReferenceNodes(ctx, appConfig.ReferenceShoot); err != nil {
-		slog.Error("failed to sync reference nodes", "referenceShoot", appConfig.ReferenceShoot, "error", err)
-		os.Exit(1)
-	}
-	return gardenAccess
-}
-
-func startScenarioExecutorEngine(gardenAccess garden.Access, vCluster kvclapi.ControlPlane, pricingAccess pricing.InstancePricingAccess, targetShootCoord *app.ShootCoordinate, logger *slog.Logger, scoringStrategy string) simulation.Engine {
-	scenarioExecutorEngine := simulation.NewExecutor(gardenAccess, vCluster, pricingAccess, targetShootCoord, logger, scoringStrategy)
-	slog.Info("Triggering start of scenario executor...")
+func startExecutorEngine(ctx context.Context, appConfig api.AppConfig, logger *slog.Logger) {
+	engine := simulation.NewExecutorEngine(appConfig, logger)
 	go func() {
-		defer scenarioExecutorEngine.Shutdown()
-		scenarioExecutorEngine.Run()
+		defer engine.Shutdown()
+		if err := engine.Start(ctx); err != nil {
+			app.ExitAppWithError(1, fmt.Errorf("error starting executor engine: %w", err))
+		}
 	}()
-	return scenarioExecutorEngine
+	return
 }
 
 func setupSignalHandler() context.Context {
@@ -106,40 +65,34 @@ func setupSignalHandler() context.Context {
 	return ctx
 }
 
-func parseCmdArgs() (app.Config, error) {
-	config := app.Config{}
+func parseCmdArgs() (api.AppConfig, error) {
+	config := api.AppConfig{}
 	args := os.Args[1:]
 	fs := flag.CommandLine
-	fs.StringVar(&config.Garden, "garden", "", "name of the garden")
+
 	fs.StringVar(&config.BinaryAssetsPath, "binary-assets-path", "", "path to the binary assets (kube-apiserver, etcd)")
-	fs.StringVar(&config.ReferenceShoot.Project, "reference-shoot-project", "", "project of the reference shoot")
-	fs.StringVar(&config.ReferenceShoot.Name, "reference-shoot-name", "", "name of the reference shoot")
 	fs.StringVar(&config.Provider, "provider", "", "provider of the target shoot")
-	fs.StringVar(&config.ScoringStrategy, "scoring-strategy", "costcpumemwaste", "scoring strategy")
+	fs.StringVar(&config.TargetKVCLKubeConfigPath, "target-kvcl-kubeconfig", "", "path to the kubeconfig of the target cluster")
+	fs.StringVar(&config.ScoringStrategy, "scoring-strategy", string(scorer.CostCpuMemWastageStrategy), "scoring strategy")
+
 	if err := fs.Parse(args); err != nil {
 		return config, err
 	}
 	return config, nil
 }
 
-func validateConfig(config app.Config) error {
-	if config.Garden == "" {
-		return fmt.Errorf("garden name is required")
-	}
+func validateConfig(config api.AppConfig) error {
 	if config.BinaryAssetsPath == "" {
 		return fmt.Errorf("binary assets path is required")
-	}
-	if config.ReferenceShoot.Project == "" || config.ReferenceShoot.Name == "" {
-		return fmt.Errorf("reference shoot project and name are required")
 	}
 	if config.Provider == "" {
 		return fmt.Errorf("provider is required")
 	}
-	if config.KubeConfigPath == "" {
+	if config.TargetKVCLKubeConfigPath == "" {
 		return fmt.Errorf("kubeconfig path is required")
 	}
-	if err := scorer.ValidateScoringStrategy(config.ScoringStrategy); err != nil {
-		return err
+	if !scorer.IsScoringStrategySupported(config.ScoringStrategy) {
+		return fmt.Errorf("scoring strategy %s is not supported", config.ScoringStrategy)
 	}
 	return nil
 }

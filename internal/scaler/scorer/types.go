@@ -1,28 +1,22 @@
 package scorer
 
 import (
-	"fmt"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+// ScoringStrategy defines the strategy used to score nodes.
 type ScoringStrategy string
 
 const (
-	PureCostStrategy          ScoringStrategy = "purecost"
-	CostCpuMemWastageStrategy ScoringStrategy = "costcpumemwastage"
+	// CostOnlyStrategy is a scoring strategy that scores nodes based on cost only.
+	CostOnlyStrategy ScoringStrategy = "cost-only"
+	// CostCpuMemWastageStrategy is a scoring strategy that scores nodes based on cost, CPU and memory wastage.
+	CostCpuMemWastageStrategy ScoringStrategy = "cost-cpu-mem-wastage"
 )
 
-var AllScoringStrategies = sets.New(
-	string(CostCpuMemWastageStrategy),
-	string(PureCostStrategy),
-)
+var scoringStrategies = sets.New(string(CostCpuMemWastageStrategy), string(CostOnlyStrategy))
 
-func ValidateScoringStrategy(strategy string) error {
-	if strategy == "" {
-		return fmt.Errorf("scoring strategy is required")
-	}
-	if !AllScoringStrategies.Has(strategy) {
-		return fmt.Errorf("scoring strategy %q is not supported", strategy)
-	}
-	return nil
+// IsScoringStrategySupported checks if the passed in scoring strategy is supported.
+func IsScoringStrategySupported(strategy string) bool {
+	return scoringStrategies.Has(strategy)
 }

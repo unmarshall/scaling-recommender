@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/elankath/gardener-scaling-common"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,9 +12,9 @@ import (
 	"unmarshall/scaling-recommender/api"
 )
 
-func ParseSimulationRequest(reqBody io.ReadCloser) (*api.SimulationRequest, error) {
-	simRequest := &api.SimulationRequest{}
-	err := json.NewDecoder(reqBody).Decode(simRequest)
+func ParseClusterSnapshot(reqBody io.ReadCloser) (*gsc.ClusterSnapshot, error) {
+	clusterSnapshot := &gsc.ClusterSnapshot{}
+	err := json.NewDecoder(reqBody).Decode(clusterSnapshot)
 	if err != nil {
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
@@ -34,7 +35,7 @@ func ParseSimulationRequest(reqBody io.ReadCloser) (*api.SimulationRequest, erro
 			return nil, err
 		}
 	}
-	return simRequest, nil
+	return clusterSnapshot, nil
 }
 
 func WriteJSON(w http.ResponseWriter, statusCode int, data api.RecommendationResponse) error {

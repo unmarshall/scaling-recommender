@@ -1,8 +1,7 @@
-package purecost
+package costonly
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"log/slog"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
@@ -21,7 +20,6 @@ func NewScorer(pa pricing.InstancePricingAccess, nodePools []api.NodePool) scale
 }
 
 func (s *_scorer) Compute(scaledNode *corev1.Node, _ []corev1.Pod) scaler.NodeScore {
-	slog.Info("In Compute method of purecost")
 	nodeScore := s.instanceTypeCost[util.GetInstanceType(scaledNode.Labels)]
 	return scaler.NodeScore{
 		CumulativeScore: nodeScore,

@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	kvclapi "github.com/unmarshall/kvcl/api"
-	"unmarshall/scaling-recommender/internal/garden"
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/scaler/scaleup"
 )
@@ -13,10 +12,10 @@ type factory struct {
 	algos map[scaler.AlgoVariant]scaler.Recommender
 }
 
-func New(ga garden.Access, vcp kvclapi.ControlPlane, logger *slog.Logger) scaler.RecommenderFactory {
+func New(vcp kvclapi.ControlPlane, logger *slog.Logger) scaler.RecommenderFactory {
 	algos := make(map[scaler.AlgoVariant]scaler.Recommender)
 	// Register all scaling algorithms
-	algos[scaler.MultiDimensionScoringScaleUpAlgo] = scaleup.NewRecommender(vcp, ga.GetAllReferenceNodes(), logger)
+	algos[scaler.MultiDimensionScoringScaleUpAlgo] = scaleup.NewRecommender(vcp, logger)
 	return &factory{
 		algos: algos,
 	}

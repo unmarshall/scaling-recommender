@@ -5,6 +5,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 )
 
 // Create two funcs :- 1. Convert NodeGrpInfos to NodePools.
@@ -12,6 +13,14 @@ import (
 // For each pair of scenario-CArecommendation, we run the simulation, get the recommendation
 // and print both. Also print which is better in terms of cost.
 // If priority expander is used by CA, then highlight that the comparison cannot be made
+
+// AppConfig is the application configuration.
+type AppConfig struct {
+	Provider                 string
+	BinaryAssetsPath         string
+	TargetKVCLKubeConfigPath string
+	ScoringStrategy          string
+}
 
 // NodePool represents a worker in gardener.
 type NodePool struct {
@@ -49,10 +58,11 @@ type NodeReference struct {
 
 // SimulationRequest is a request to simulate a scenario.
 type SimulationRequest struct {
-	ID        string     `json:"id"`
-	NodePools []NodePool `json:"nodePools"`
-	Pods      []PodInfo  `json:"pods"`
-	Nodes     []NodeInfo `json:"nodes"`
+	ID              string                       `json:"id"`
+	NodePools       []NodePool                   `json:"nodePools"`
+	Pods            []PodInfo                    `json:"pods"`
+	PriorityClasses []schedulingv1.PriorityClass `json:"priorityClasses"`
+	Nodes           []NodeInfo                   `json:"nodes"`
 	// PodOrder is the order in which pods will be sorted and scheduled.
 	// If not provided, pods will be ordered in descending order of requested resources.
 	PodOrder *string `json:"podOrder,omitempty"`
