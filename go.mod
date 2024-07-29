@@ -32,7 +32,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/elankath/gardener-scaling-common v0.0.0-20240724204412-870087dc66e2 // indirect
+	github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.8.0 // indirect

@@ -144,7 +144,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 
 func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) error {
 	pods := util.ConstructPodsFromPodInfos(simReq.Pods, util.NilOr(simReq.PodOrder, common.SortDescending))
-	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes, r.refNodes)
+	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes, simReq.NodeTemplates)
 	if err != nil {
 		return err
 	}

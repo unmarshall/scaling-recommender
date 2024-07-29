@@ -44,7 +44,11 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	simRequest := h.createSimulationRequest(clusterSnapshot)
+	simRequest, err := createSimulationRequest(clusterSnapshot)
+	if err != nil {
+		web.ErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	logger := baseLogger.With("id", simRequest.ID)
@@ -72,19 +76,68 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) createSimulationRequest(cs *gsc.ClusterSnapshot) api.SimulationRequest {
-
-	//TODO rishabh to code this
-	h.engine.TargetClient()
+func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.SimulationRequest, err error) {
+	for _, pc := range cs.PriorityClasses {
+		simRequest.PriorityClasses = append(simRequest.PriorityClasses, pc.PriorityClass)
+	}
+	for _, pi := range cs.Pods {
+		pod := api.PodInfo{
+			Name:              pi.Name,
+			Labels:            pi.Labels,
+			Spec:              pi.Spec,
+			NominatedNodeName: pi.NominatedNodeName,
+			Count:             1,
+		}
+		simRequest.Pods = append(simRequest.Pods, pod)
+	}
+	for _, n := range cs.Nodes {
+		node := api.NodeInfo{
+			Name:        n.Name,
+			Labels:      n.Labels,
+			Taints:      n.Taints,
+			Allocatable: n.Allocatable,
+			Capacity:    n.Capacity,
+		}
+		simRequest.Nodes = append(simRequest.Nodes, node)
+	}
+	nodeCountPerPool := deriveNodeCountPerWorkerPool(cs.Nodes)
 	nodePools := make([]api.NodePool, 0, len(cs.WorkerPools))
+
 	for _, wp := range cs.WorkerPools {
-		nodePools = append(nodePools, api.NodePool{
+		count, ok := nodeCountPerPool[wp.Name]
+		if !ok {
+			err = fmt.Errorf("createSimulationRequest cannot find workerpool with name %q", wp.Name)
+			return
+		}
+		nodePool := api.NodePool{
 			Name:         wp.Name,
 			Zones:        sets.New(wp.Zones...),
 			Max:          int32(wp.Maximum),
-			Current:      0,
+			Current:      int32(count),
 			InstanceType: wp.MachineType,
-		})
+		}
+		nodePools = append(nodePools, nodePool)
+		var gotNodeTemplate bool
+		for _, nt := range cs.AutoscalerConfig.NodeTemplates {
+			if nt.InstanceType == wp.MachineType && nodePool.Zones.Has(nt.Zone) {
+				simRequest.NodeTemplates[wp.MachineType] = nt
+				gotNodeTemplate = true
+				break
+			}
+		}
+		if !gotNodeTemplate {
+			err = fmt.Errorf("createSimulationRequest cannot find node template for workerpool %q", wp.Name)
+		}
 	}
-	return api.SimulationRequest{}
+	simRequest.NodePools = nodePools
+	simRequest.ID = cs.ID
+	return
+}
+
+func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
+	count := make(map[string]int)
+	for _, n := range nodes {
+		count[n.Labels["worker.gardener.cloud/pool"]]++
+	}
+	return count
 }

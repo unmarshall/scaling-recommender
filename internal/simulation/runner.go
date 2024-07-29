@@ -74,7 +74,7 @@ func (e *engine) initializePricingAccess() error {
 }
 
 func (e *engine) createTargetClient() {
-	// TODO Rishabh will code this
+
 }
 
 func (e *engine) startHTTPServer() error {

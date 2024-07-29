@@ -37,6 +37,8 @@ github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01 h1:7MK
 github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01/go.mod h1:Bd1HOdPYfDEczSuP+4C9DIaQnhTgmLe2I+ixMM+JZF0=
 github.com/elankath/gardener-scaling-common v0.0.0-20240724204412-870087dc66e2 h1:yKqokiP2vKY/R20Cgd9xsnfY+DMtXaV8WZDXVN1R29s=
 github.com/elankath/gardener-scaling-common v0.0.0-20240724204412-870087dc66e2/go.mod h1:qpfpq3WPi97vGauiq3cyT5AbC8hfYSLotJiT0gUMszY=
+github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756 h1:zn2gGbEvjxUG7DpPFMo/0OlaL20XJ9MgUjIWP8u/2LA=
+github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756/go.mod h1:qpfpq3WPi97vGauiq3cyT5AbC8hfYSLotJiT0gUMszY=
 github.com/elankath/gardener-scaling-types v0.0.0-20240705082540-19dc39cf96e4 h1:jz7BIUWZPB0bNSWG1lUV+4L6HU1n/8bWd81fPjxAeD4=
 github.com/elankath/gardener-scaling-types v0.0.0-20240705082540-19dc39cf96e4/go.mod h1:NRbtdKj6AIVITNektyI/9o1KBeqG4z1OrzB+lDKx+eA=
 github.com/emicklei/go-restful/v3 v3.11.0 h1:rAQeMHw1c7zTmncogyy8VvRZwtkmkZ4FxERmMY4rD+g=

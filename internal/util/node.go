@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
+	gsc "github.com/elankath/gardener-scaling-common"
 
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
@@ -67,7 +68,7 @@ func evaluateNodeFilters(node *corev1.Node, filters []common.NodeFilter) bool {
 	return true
 }
 
-func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, refNodes ReferenceNodes) ([]*corev1.Node, error) {
+func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplate map[string]gsc.NodeTemplate) ([]*corev1.Node, error) {
 	nodes := make([]*corev1.Node, 0, len(nodeInfos))
 	for _, np := range nodeInfos {
 		refNode, err := refNodes.GetReferenceNode(GetInstanceType(np.Labels))

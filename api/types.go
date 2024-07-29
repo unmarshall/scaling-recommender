@@ -1,6 +1,7 @@
 package api
 
 import (
+	gsc "github.com/elankath/gardener-scaling-common"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -63,6 +64,8 @@ type SimulationRequest struct {
 	Pods            []PodInfo                    `json:"pods"`
 	PriorityClasses []schedulingv1.PriorityClass `json:"priorityClasses"`
 	Nodes           []NodeInfo                   `json:"nodes"`
+	// NodeTemplates is a map keyed on the instance Type.
+	NodeTemplates map[string]gsc.NodeTemplate `json:"nodeTemplates"`
 	// PodOrder is the order in which pods will be sorted and scheduled.
 	// If not provided, pods will be ordered in descending order of requested resources.
 	PodOrder *string `json:"podOrder,omitempty"`
