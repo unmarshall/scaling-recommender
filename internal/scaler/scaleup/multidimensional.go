@@ -33,14 +33,15 @@ const (
 )
 
 type recommender struct {
-	nc         kvclapi.NodeControl
-	pc         kvclapi.PodControl
-	ec         kvclapi.EventControl
-	pa         pricing.InstancePricingAccess
-	scorer     scaler.Scorer
-	state      simulationState
-	baseLogger *slog.Logger
-	logger     *slog.Logger
+	nc            kvclapi.NodeControl
+	pc            kvclapi.PodControl
+	ec            kvclapi.EventControl
+	pa            pricing.InstancePricingAccess
+	scorer        scaler.Scorer
+	state         simulationState
+	nodeTemplates map[string]api.NodeTemplate
+	baseLogger    *slog.Logger
+	logger        *slog.Logger
 }
 
 type runResult struct {
@@ -108,6 +109,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 	)
 	r.scorer = scorer
 	r.logger = r.baseLogger.With("id", simReq.ID)
+	r.nodeTemplates = simReq.NodeTemplates
 	if err := r.initializeSimulationState(simReq); err != nil {
 		return scaler.ErrorResult(err)
 	}
@@ -144,7 +146,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 
 func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) error {
 	pods := util.ConstructPodsFromPodInfos(simReq.Pods, util.NilOr(simReq.PodOrder, common.SortDescending))
-	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes, simReq.NodeTemplates)
+	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes)
 	if err != nil {
 		return err
 	}
@@ -225,12 +227,12 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 				return
 			}
 		}
-		refNode, err := r.refNodes.GetReferenceNode(nodePool.InstanceType)
-		if err != nil {
-			resultCh <- errorRunResult(err)
+		foundNodeTemplate, ok := r.nodeTemplates[nodePool.InstanceType]
+		if !ok {
+			resultCh <- errorRunResult(fmt.Errorf("node template not found for instance type %s", nodePool.InstanceType))
 			return
 		}
-		node, err = util.ConstructNodeForSimRun(refNode, nodePool.Name, zone, runRef)
+		node, err = util.ConstructNodeForSimRun(foundNodeTemplate, nodePool.Name, zone, runRef)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
@@ -417,9 +419,9 @@ func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context,
 }
 
 func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
-	refNode, err := r.refNodes.GetReferenceNode(winningRunResult.instanceType)
-	if err != nil {
-		return nil, err
+	foundNodeTemplate, ok := r.nodeTemplates[winningRunResult.instanceType]
+	if !ok {
+		return nil, fmt.Errorf("node template not found for instance type %s", winningRunResult.instanceType)
 	}
 	node, err := util.ConstructNodeFromRefNode(refNode, winningRunResult.nodePoolName, winningRunResult.zone)
 	if err != nil {

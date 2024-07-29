@@ -3,6 +3,7 @@ package simulation
 import (
 	"context"
 	kvcl "github.com/unmarshall/kvcl/pkg/control"
+	"k8s.io/client-go/tools/clientcmd"
 	"log/slog"
 	"net/http"
 	"os"
@@ -49,7 +50,9 @@ func (e *engine) Start(ctx context.Context) error {
 	if err := e.initializePricingAccess(); err != nil {
 		return err
 	}
-	e.createTargetClient()
+	if err := e.createTargetClient(); err != nil {
+		return err
+	}
 	return e.startHTTPServer()
 }
 
@@ -73,8 +76,25 @@ func (e *engine) initializePricingAccess() error {
 	return nil
 }
 
-func (e *engine) createTargetClient() {
-
+func (e *engine) createTargetClient() error {
+	kubeConfigBytes, err := os.ReadFile(e.appConfig.TargetKVCLKubeConfigPath)
+	if err != nil {
+		return err
+	}
+	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeConfigBytes)
+	if err != nil {
+		return err
+	}
+	restCfg, err := clientConfig.ClientConfig()
+	if err != nil {
+		return err
+	}
+	cl, err := client.New(restCfg, client.Options{})
+	if err != nil {
+		return err
+	}
+	e.targetClient = cl
+	return nil
 }
 
 func (e *engine) startHTTPServer() error {

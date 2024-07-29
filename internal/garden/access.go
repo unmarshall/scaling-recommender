@@ -82,7 +82,7 @@ func (a *access) SyncReferenceNodes(ctx context.Context, shootCoord app.ShootCoo
 
 func (a *access) GetReferenceNode(instanceType string) (*corev1.Node, bool) {
 	for _, node := range a.referenceNodes {
-		if util.GetNodeInstanceType(node) == instanceType {
+		if util.GetInstanceType(node.Labels) == instanceType {
 			return &node, true
 		}
 	}

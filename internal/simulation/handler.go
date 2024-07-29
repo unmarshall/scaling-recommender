@@ -77,6 +77,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 }
 
 func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.SimulationRequest, err error) {
+	simRequest.ID = cs.ID
 	for _, pc := range cs.PriorityClasses {
 		simRequest.PriorityClasses = append(simRequest.PriorityClasses, pc.PriorityClass)
 	}
@@ -117,27 +118,40 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 			InstanceType: wp.MachineType,
 		}
 		nodePools = append(nodePools, nodePool)
-		var gotNodeTemplate bool
-		for _, nt := range cs.AutoscalerConfig.NodeTemplates {
-			if nt.InstanceType == wp.MachineType && nodePool.Zones.Has(nt.Zone) {
-				simRequest.NodeTemplates[wp.MachineType] = nt
-				gotNodeTemplate = true
-				break
-			}
-		}
-		if !gotNodeTemplate {
+		simRequest.NodePools = nodePools
+
+		nodeTemplate := findNodeTemplate(wp.MachineType, cs.AutoscalerConfig.NodeTemplates)
+		if nodeTemplate == nil {
 			err = fmt.Errorf("createSimulationRequest cannot find node template for workerpool %q", wp.Name)
+			return
 		}
+		simRequest.NodeTemplates[wp.MachineType] = *nodeTemplate
 	}
-	simRequest.NodePools = nodePools
-	simRequest.ID = cs.ID
 	return
 }
 
-func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
-	count := make(map[string]int)
-	for _, n := range nodes {
-		count[n.Labels["worker.gardener.cloud/pool"]]++
+/*
+	systemComponentResources = get system pods resourceList from existing pods
+	Allocatable = Capacity - (kube-reserved + system-reserved + systemComponentResources)
+*/
+
+func findNodeTemplate(instanceType string, csNodeTemplates map[string]gsc.NodeTemplate) *api.NodeTemplate {
+	for _, nt := range csNodeTemplates {
+		if nt.InstanceType == instanceType {
+			return &api.NodeTemplate{
+				InstanceType: instanceType,
+				Labels:       nt.Labels,
+				Capacity:     nt.Capacity,
+			}
+		}
 	}
-	return count
+	return nil
+}
+
+func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
+	nodeCountPerPool := make(map[string]int)
+	for _, n := range nodes {
+		nodeCountPerPool[n.Labels["worker.gardener.cloud/pool"]]++
+	}
+	return nodeCountPerPool
 }

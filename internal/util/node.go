@@ -3,8 +3,6 @@ package util
 import (
 	"context"
 	"fmt"
-	gsc "github.com/elankath/gardener-scaling-common"
-
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,10 +35,6 @@ func GetNodeNames(nodes []corev1.Node) []string {
 	})
 }
 
-func GetNodeInstanceType(node corev1.Node) string {
-	return node.Labels["node.kubernetes.io/instance-type"]
-}
-
 func ListNodes(ctx context.Context, cl client.Client, filters ...common.NodeFilter) ([]corev1.Node, error) {
 	nodes := &corev1.NodeList{}
 	err := cl.List(ctx, nodes)
@@ -68,14 +62,9 @@ func evaluateNodeFilters(node *corev1.Node, filters []common.NodeFilter) bool {
 	return true
 }
 
-func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplate map[string]gsc.NodeTemplate) ([]*corev1.Node, error) {
+func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) ([]*corev1.Node, error) {
 	nodes := make([]*corev1.Node, 0, len(nodeInfos))
 	for _, np := range nodeInfos {
-		refNode, err := refNodes.GetReferenceNode(GetInstanceType(np.Labels))
-		if err != nil {
-			return nil, err
-		}
-
 		node := &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      np.Name,
@@ -86,8 +75,8 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplate map[stri
 				Taints: np.Taints,
 			},
 			Status: corev1.NodeStatus{
-				Allocatable: refNode.Status.Allocatable,
-				Capacity:    refNode.Status.Capacity,
+				Allocatable: np.Allocatable,
+				Capacity:    np.Capacity,
 				Phase:       corev1.NodeRunning,
 			},
 		}
@@ -96,13 +85,13 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplate map[stri
 	return nodes, nil
 }
 
-func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {
+func ConstructNodeForSimRun(nodeTemplate api.NodeTemplate, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {
 	nodeNamePrefix, err := GenerateRandomString(4)
 	if err != nil {
 		return nil, err
 	}
 	nodeName := nodeNamePrefix + "-" + poolName + "-simrun-" + runRef.B
-	labels := refNode.Labels
+	labels := nodeTemplate.Labels
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[runRef.A] = runRef.B
 	labels[common.TopologyHostLabelKey] = nodeName
@@ -110,23 +99,23 @@ func ConstructNodeForSimRun(refNode *corev1.Node, poolName, zone string, runRef 
 		{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
 	}
 
-	return doConstructNodeFromRefNode(refNode, nodeName, labels, taints), nil
+	return doConstructNodeFromRefNode(nodeTemplate, nodeName, labels, taints), nil
 }
 
-func ConstructNodeFromRefNode(refNode *corev1.Node, poolName, zone string) (*corev1.Node, error) {
+func ConstructNodeFromRefNode(nodeTemplate api.NodeTemplate, poolName, zone string) (*corev1.Node, error) {
 	nodeNamePrefix, err := GenerateRandomString(4)
 	if err != nil {
 		return nil, err
 	}
 	nodeName := nodeNamePrefix + "-" + poolName
-	labels := refNode.Labels
+	labels := nodeTemplate.Labels
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[common.TopologyHostLabelKey] = nodeName
 
-	return doConstructNodeFromRefNode(refNode, nodeName, labels, nil), nil
+	return doConstructNodeFromRefNode(nodeTemplate, nodeName, labels, nil), nil
 }
 
-func doConstructNodeFromRefNode(refNode *corev1.Node, newNodeName string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
+func doConstructNodeFromRefNode(nodeTemplate api.NodeTemplate, newNodeName string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newNodeName,
@@ -137,8 +126,8 @@ func doConstructNodeFromRefNode(refNode *corev1.Node, newNodeName string, labels
 			Taints: taints,
 		},
 		Status: corev1.NodeStatus{
-			Allocatable: refNode.Status.Allocatable,
-			Capacity:    refNode.Status.Capacity,
+			Allocatable: nodeTemplate.Allocatable,
+			Capacity:    nodeTemplate.Capacity,
 			Phase:       corev1.NodeRunning,
 		},
 	}
