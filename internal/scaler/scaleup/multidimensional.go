@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	v1 "k8s.io/api/scheduling/v1"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -37,6 +38,7 @@ type recommender struct {
 	pc            kvclapi.PodControl
 	ec            kvclapi.EventControl
 	pa            pricing.InstancePricingAccess
+	client        client.Client
 	scorer        scaler.Scorer
 	state         simulationState
 	nodeTemplates map[string]api.NodeTemplate
@@ -70,6 +72,7 @@ type simulationState struct {
 	scheduledPods           []*corev1.Pod
 	// eligibleNodePools holds the available node capacity per node pool.
 	eligibleNodePools map[string]api.NodePool
+	priorityClasses   []v1.PriorityClass
 }
 
 func (s *simulationState) updateEligibleNodePools(recommendation *api.ScaleUpRecommendation) {
@@ -98,6 +101,7 @@ func NewRecommender(vcp kvclapi.ControlPlane, baseLogger *slog.Logger) scaler.Re
 		nc:         vcp.NodeControl(),
 		pc:         vcp.PodControl(),
 		ec:         vcp.EventControl(),
+		client:     vcp.Client(),
 		baseLogger: baseLogger,
 	}
 }
@@ -158,6 +162,7 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) er
 		return np.Name, np
 	})
 	r.state.existingNodes = nodes
+	r.state.priorityClasses = simReq.PriorityClasses
 	return nil
 }
 
@@ -419,11 +424,11 @@ func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context,
 }
 
 func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
-	foundNodeTemplate, ok := r.nodeTemplates[winningRunResult.instanceType]
+	nodeTemplate, ok := r.nodeTemplates[winningRunResult.instanceType]
 	if !ok {
 		return nil, fmt.Errorf("node template not found for instance type %s", winningRunResult.instanceType)
 	}
-	node, err := util.ConstructNodeFromRefNode(refNode, winningRunResult.nodePoolName, winningRunResult.zone)
+	node, err := util.ConstructNodeFromNodeTemplate(nodeTemplate, winningRunResult.nodePoolName, winningRunResult.zone)
 	if err != nil {
 		return nil, err
 	}
@@ -463,6 +468,11 @@ func (r *recommender) initializeVirtualCluster(ctx context.Context) error {
 	if r.state.scheduledPods != nil {
 		if err := r.pc.CreatePods(ctx, r.state.scheduledPods...); err != nil {
 			return fmt.Errorf("failed to initialize virtual cluster with scheduled pods: %w", err)
+		}
+	}
+	for _, pc := range r.state.priorityClasses {
+		if err := r.client.Create(ctx, &pc); err != nil {
+			return fmt.Errorf("failed to initialize virtual cluster with priority class: %w", err)
 		}
 	}
 	return nil

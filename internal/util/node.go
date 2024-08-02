@@ -99,10 +99,10 @@ func ConstructNodeForSimRun(nodeTemplate api.NodeTemplate, poolName, zone string
 		{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
 	}
 
-	return doConstructNodeFromRefNode(nodeTemplate, nodeName, labels, taints), nil
+	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, taints), nil
 }
 
-func ConstructNodeFromRefNode(nodeTemplate api.NodeTemplate, poolName, zone string) (*corev1.Node, error) {
+func ConstructNodeFromNodeTemplate(nodeTemplate api.NodeTemplate, poolName, zone string) (*corev1.Node, error) {
 	nodeNamePrefix, err := GenerateRandomString(4)
 	if err != nil {
 		return nil, err
@@ -112,10 +112,10 @@ func ConstructNodeFromRefNode(nodeTemplate api.NodeTemplate, poolName, zone stri
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[common.TopologyHostLabelKey] = nodeName
 
-	return doConstructNodeFromRefNode(nodeTemplate, nodeName, labels, nil), nil
+	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, nil), nil
 }
 
-func doConstructNodeFromRefNode(nodeTemplate api.NodeTemplate, newNodeName string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
+func doConstructNodeFromNodeTemplate(nodeTemplate api.NodeTemplate, newNodeName string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newNodeName,

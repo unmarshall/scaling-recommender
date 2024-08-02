@@ -1,8 +1,12 @@
 package simulation
 
 import (
+	"context"
 	"fmt"
 	"github.com/elankath/gardener-scaling-common"
+	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"log/slog"
 	"net/http"
@@ -12,6 +16,7 @@ import (
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/scaler/scorer"
 	"unmarshall/scaling-recommender/internal/simulation/web"
+	"unmarshall/scaling-recommender/internal/util"
 )
 
 type Handler struct {
@@ -65,6 +70,11 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
 		return
 	}
+	if err = h.applyRecommendation(r.Context(), result.Ok.Recommendation.ScaleUp, simRequest.NodeTemplates); err != nil {
+		slog.Error("Failed in applying recommendation")
+		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	runTime := time.Since(startTime)
 	response := api.RecommendationResponse{
 		Recommendation:  result.Ok.Recommendation,
@@ -74,6 +84,24 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	if err = web.WriteJSON(w, http.StatusOK, response); err != nil {
 		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
 	}
+}
+
+func (h *Handler) applyRecommendation(ctx context.Context, recommendations []api.ScaleUpRecommendation, nodeTemplates map[string]api.NodeTemplate) error {
+	targetClient := h.engine.TargetClient()
+	for _, r := range recommendations {
+		slog.Info("Applying recommendation", "nodePool", r.NodePoolName, "zone", r.Zone, "instanceType", r.InstanceType, "incrementBy", r.IncrementBy)
+		for i := int32(0); i < r.IncrementBy; i++ {
+			nodeTemplate := nodeTemplates[r.InstanceType]
+			node, err := util.ConstructNodeFromNodeTemplate(nodeTemplate, r.NodePoolName, r.Zone)
+			if err != nil {
+				return err
+			}
+			if err = targetClient.Create(ctx, node); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.SimulationRequest, err error) {
@@ -104,12 +132,12 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 	nodeCountPerPool := deriveNodeCountPerWorkerPool(cs.Nodes)
 	nodePools := make([]api.NodePool, 0, len(cs.WorkerPools))
 
+	maxResourceList, err := getMaxSystemComponentRequestsAcrossNodes(simRequest.Pods)
+	if err != nil {
+		return api.SimulationRequest{}, err
+	}
 	for _, wp := range cs.WorkerPools {
-		count, ok := nodeCountPerPool[wp.Name]
-		if !ok {
-			err = fmt.Errorf("createSimulationRequest cannot find workerpool with name %q", wp.Name)
-			return
-		}
+		count := nodeCountPerPool[wp.Name]
 		nodePool := api.NodePool{
 			Name:         wp.Name,
 			Zones:        sets.New(wp.Zones...),
@@ -125,6 +153,7 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 			err = fmt.Errorf("createSimulationRequest cannot find node template for workerpool %q", wp.Name)
 			return
 		}
+		computeNodeTemplateAllocatable(nodeTemplate, maxResourceList)
 		simRequest.NodeTemplates[wp.MachineType] = *nodeTemplate
 	}
 	return
@@ -154,4 +183,63 @@ func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
 		nodeCountPerPool[n.Labels["worker.gardener.cloud/pool"]]++
 	}
 	return nodeCountPerPool
+}
+
+// computeNodeTemplateAllocatable will reduce the allocatable for a node by subtracting the total CPU and Memory that is consumed
+// by all system components that are deployed in the kube-system namespace of the shoot cluster.
+func computeNodeTemplateAllocatable(nodeTemplate *api.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
+	kubeReservedCPU := resource.MustParse("80m")
+	kubeReservedMemory := resource.MustParse("1Gi")
+
+	nodeTemplate.Allocatable = nodeTemplate.Capacity.DeepCopy()
+	nodeTemplate.Allocatable.Memory().Sub(sysComponentMaxResourceList[corev1.ResourceMemory])
+	nodeTemplate.Allocatable.Memory().Sub(kubeReservedMemory)
+
+	nodeTemplate.Allocatable.Cpu().Sub(sysComponentMaxResourceList[corev1.ResourceMemory])
+	nodeTemplate.Allocatable.Cpu().Sub(kubeReservedCPU)
+
+}
+
+func getMaxSystemComponentRequestsAcrossNodes(pods []api.PodInfo) (corev1.ResourceList, error) {
+	nodeSystemComponentResourceList := collectSystemComponentResourceRequestsByNode(pods)
+	maxResourceList := corev1.ResourceList{}
+	for _, r := range nodeSystemComponentResourceList {
+		for name, q := range r {
+			val, ok := maxResourceList[name]
+			if !ok {
+				maxResourceList[name] = q
+				continue
+			}
+			if val.Cmp(q) < 0 {
+				maxResourceList[name] = q
+			}
+		}
+	}
+	return maxResourceList, nil
+}
+
+func collectSystemComponentResourceRequestsByNode(pods []api.PodInfo) map[string]corev1.ResourceList {
+	podsByNode := lo.GroupBy(pods, func(pod api.PodInfo) string {
+		return pod.Spec.NodeName
+	})
+	nodeResourceRequests := make(map[string]corev1.ResourceList, len(podsByNode))
+	for nodeName, nodePods := range podsByNode {
+		nodeResourceRequests[nodeName] = sumResourceRequests(nodePods)
+	}
+	return nodeResourceRequests
+}
+
+func sumResourceRequests(pods []api.PodInfo) corev1.ResourceList {
+	var totalMemory resource.Quantity
+	var totalCPU resource.Quantity
+	for _, pod := range pods {
+		for _, container := range pod.Spec.Containers {
+			totalMemory.Add(util.NilOr(container.Resources.Requests.Memory(), resource.Quantity{}))
+			totalCPU.Add(util.NilOr(container.Resources.Requests.Cpu(), resource.Quantity{}))
+		}
+	}
+	return corev1.ResourceList{
+		corev1.ResourceMemory: totalMemory,
+		corev1.ResourceCPU:    totalCPU,
+	}
 }

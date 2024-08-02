@@ -1,8 +1,6 @@
 module unmarshall/scaling-recommender
 
-go 1.22.2
-
-toolchain go1.22.5
+go 1.22
 
 require (
 	github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01
@@ -10,7 +8,7 @@ require (
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/samber/lo v1.46.0
-	github.com/unmarshall/kvcl v0.0.0-20240717113113-62981b259468
+	github.com/unmarshall/kvcl v0.0.0-20240802094838-558a329bef06
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.30.3
