@@ -2,6 +2,7 @@ package simulation
 
 import (
 	"context"
+	kvclapi "github.com/unmarshall/kvcl/api"
 	kvcl "github.com/unmarshall/kvcl/pkg/control"
 	"k8s.io/client-go/tools/clientcmd"
 	"log/slog"
@@ -9,10 +10,9 @@ import (
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"unmarshall/scaling-recommender/api"
-
-	kvclapi "github.com/unmarshall/kvcl/api"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
+	"unmarshall/scaling-recommender/internal/scaler/factory"
 )
 
 type Engine interface {
@@ -53,11 +53,12 @@ func (e *engine) Start(ctx context.Context) error {
 	if err := e.createTargetClient(); err != nil {
 		return err
 	}
+	e.recommenderFactory = factory.New(e.virtualCluster, e.logger)
 	return e.startHTTPServer()
 }
 
 func (e *engine) startEmbeddedVirtualCluster(ctx context.Context) {
-	vCluster := kvcl.NewControlPlane(e.appConfig.BinaryAssetsPath, "")
+	vCluster := kvcl.NewControlPlane(e.appConfig.BinaryAssetsPath, "/tmp/kvcl-embed.yaml")
 	if err := vCluster.Start(ctx); err != nil {
 		slog.Error("failed to start virtual cluster", "error", err)
 		os.Exit(1)

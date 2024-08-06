@@ -136,6 +136,7 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 	if err != nil {
 		return api.SimulationRequest{}, err
 	}
+	nodeTemplates := make(map[string]api.NodeTemplate, len(cs.WorkerPools))
 	for _, wp := range cs.WorkerPools {
 		count := nodeCountPerPool[wp.Name]
 		nodePool := api.NodePool{
@@ -154,8 +155,9 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 			return
 		}
 		computeNodeTemplateAllocatable(nodeTemplate, maxResourceList)
-		simRequest.NodeTemplates[wp.MachineType] = *nodeTemplate
+		nodeTemplates[wp.MachineType] = *nodeTemplate
 	}
+	simRequest.NodeTemplates = nodeTemplates
 	return
 }
 

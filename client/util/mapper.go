@@ -2,50 +2,38 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
+	scalehist "github.com/elankath/gardener-scaling-history"
 	"log"
 	"os"
-
-	"github.com/samber/lo"
-	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/elankath/gardener-scalehist"
-	"unmarshall/scaling-recommender/api"
 )
 
-// FAILED SCHEDULING STREAM = {FAILED-PA1, FAILED-PB2, FAILED-PA1, FAILED-PC3, FAILED-PD1....}
-// SCHEDULED STREAM = {SCHEDULED-PA1, SCHEDULED-PB2, SCHEDULED-PC3, ....}
-// SCALE-UP = {TRIGGER-NG1-PA1, TRIGGER-NG1-PB2, TRIGGER-NG2-PC3...}
-// SCALE-DOWN = {..., SCALEDOWN-NG1}
-// HOW TO END SCENARIOS
-// 1. ALL PODS GOT SCHEDULED AFTER RANGE OF TRIGGER SCALE-UPS
-// 2. STOP SCENARIO COALESCING AT THE FIRST SCALE-DOWN
-// 3.
+//func CreateClusterSnapshot(scenarios []scalehist.Scenario) ([]gsc.ClusterSnapshot, error) {
+//	return lo.Map(scenarios, func(scenario scalehist.Scenario, index int) gsc.ClusterSnapshot {
+//		return gsc.ClusterSnapshot{
+//			ID:          fmt.Sprintf("Scenario-%d", index),
+//			AutoscalerConfig: gsc.AutoscalerConfig{NodeTemplates: map[string]gsc.NodeTemplate{
+//
+//			}}
+//			WorkerPools: mapToWorkerPools(scenario.NodeGroups),
+//			Pods:        mapToPodInfos(lo.Flatten([][]scalehist.PodInfo{scenario.ScheduledPods, scenario.UnscheduledPods})),
+//			Nodes:       mapToNodeInfos(scenario.Nodes),
+//		}
+//	}), nil
+//}
 
-func CreateSimRequests(scenarios []scalehist.Scenario) ([]api.SimulationRequest, error) {
-	return lo.Map(scenarios, func(scenario scalehist.Scenario, index int) api.SimulationRequest {
-		return api.SimulationRequest{
-			ID:        fmt.Sprintf("Scenario-%d", index),
-			NodePools: mapToNodePools(scenario.NodeGroups),
-			Pods:      mapToPodInfos(lo.Flatten([][]scalehist.PodInfo{scenario.ScheduledPods, scenario.UnscheduledPods})),
-			Nodes:     mapToNodeInfos(scenario.Nodes),
-		}
-	}), nil
-}
-
-func ExtractCAScaleUpRecommendation(nodeGrps []scalehist.NodeGroupInfo) []api.ScaleUpRecommendation {
-	scaledNodeGrps := lo.Filter(nodeGrps, func(nodeGrp scalehist.NodeGroupInfo, _ int) bool {
-		return nodeGrp.TargetSize-nodeGrp.CurrentSize > 0
-	})
-	return lo.Map(scaledNodeGrps, func(ng scalehist.NodeGroupInfo, _ int) api.ScaleUpRecommendation {
-		return api.ScaleUpRecommendation{
-			Zone:         ng.Zone,
-			NodePoolName: ng.PoolName,
-			IncrementBy:  int32(ng.TargetSize - ng.CurrentSize),
-			InstanceType: ng.MachineType,
-		}
-	})
-}
+//func ExtractCAScaleUpRecommendation(nodeGrps []scalehist.NodeGroupInfo) []api.ScaleUpRecommendation {
+//	scaledNodeGrps := lo.Filter(nodeGrps, func(nodeGrp scalehist.NodeGroupInfo, _ int) bool {
+//		return nodeGrp.TargetSize-nodeGrp.CurrentSize > 0
+//	})
+//	return lo.Map(scaledNodeGrps, func(ng scalehist.NodeGroupInfo, _ int) api.ScaleUpRecommendation {
+//		return api.ScaleUpRecommendation{
+//			Zone:         ng.Zone,
+//			NodePoolName: ng.PoolName,
+//			IncrementBy:  int32(ng.TargetSize - ng.CurrentSize),
+//			InstanceType: ng.MachineType,
+//		}
+//	})
+//}
 
 func ReadScenarios(filePath string) ([]scalehist.Scenario, error) {
 	file, err := os.Open(filePath)
@@ -55,7 +43,7 @@ func ReadScenarios(filePath string) ([]scalehist.Scenario, error) {
 	defer func() {
 		_ = file.Close()
 	}()
-	analysis := &scalehist.Analysis{}
+	analysis := &scalehist.ReplayReport{}
 	err = json.NewDecoder(file).Decode(analysis)
 	if err != nil {
 		log.Fatal(err)
@@ -63,47 +51,54 @@ func ReadScenarios(filePath string) ([]scalehist.Scenario, error) {
 	return analysis.Scenarios, nil
 }
 
-func mapToNodePools(nodeGrps []scalehist.NodeGroupInfo) []api.NodePool {
-	nodePools := make(map[string]api.NodePool)
-	for _, nodeGrp := range nodeGrps {
-		if np, ok := nodePools[nodeGrp.PoolName]; ok {
-			np.Max += int32(nodeGrp.MaxSize)
-			np.Current += int32(nodeGrp.CurrentSize)
-			np.Zones.Insert(nodeGrp.Zone)
-			nodePools[nodeGrp.PoolName] = np
-		} else {
-			nodePools[nodeGrp.PoolName] = api.NodePool{
-				Name:         nodeGrp.PoolName,
-				Zones:        sets.New(nodeGrp.Zone),
-				Max:          int32(nodeGrp.MaxSize),
-				Current:      int32(nodeGrp.CurrentSize),
-				InstanceType: nodeGrp.MachineType,
-			}
-		}
-	}
-	return lo.Values(nodePools)
-}
-
-func mapToPodInfos(podInfos []scalehist.PodInfo) []api.PodInfo {
-	return lo.Map(podInfos, func(podInfo scalehist.PodInfo, _ int) api.PodInfo {
-		return api.PodInfo{
-			Name:              podInfo.Name,
-			Labels:            podInfo.Labels,
-			Spec:              podInfo.Spec,
-			NominatedNodeName: podInfo.NominatedNodeName,
-			Count:             1,
-		}
-	})
-}
-
-func mapToNodeInfos(nodeInfos []scalehist.NodeInfo) []api.NodeInfo {
-	return lo.Map(nodeInfos, func(nodeInfo scalehist.NodeInfo, _ int) api.NodeInfo {
-		return api.NodeInfo{
-			Name:        nodeInfo.Name,
-			Labels:      nodeInfo.Labels,
-			Taints:      nodeInfo.Taints,
-			Allocatable: nodeInfo.Allocatable,
-			Capacity:    nodeInfo.Capacity,
-		}
-	})
-}
+//func mapToWorkerPools(nodeGrps []scalehist.NodeGroupInfo) []gsc.WorkerPoolInfo {
+//	workerPools := make([]gsc.WorkerPoolInfo, 0, len(nodeGrps))
+//	poolNameToNodeGroups := lo.GroupBy(nodeGrps, func(ng scalehist.NodeGroupInfo) string {
+//		return ng.PoolName
+//	})
+//
+//	for poolName, ngs := range poolNameToNodeGroups {
+//		zones := lo.Reduce(ngs, func(zones []string, ng scalehist.NodeGroupInfo, _ int) []string {
+//			return append(zones, ng.Zone)
+//		}, []string{})
+//		workerPools = append(workerPools, gsc.WorkerPoolInfo{
+//			SnapshotMeta: gsc.SnapshotMeta{
+//				Name: poolName,
+//			},
+//			Maximum:     ngs[0].PoolMax,
+//			Minimum:     ngs[0].PoolMin,
+//			Zones:       zones,
+//			MachineType: ngs[0].MachineType,
+//		})
+//	}
+//	return workerPools
+//}
+//
+//func mapToPodInfos(podInfos []scalehist.PodInfo) []gsc.PodInfo {
+//	return lo.Map(podInfos, func(podInfo scalehist.PodInfo, _ int) gsc.PodInfo {
+//		return gsc.PodInfo{
+//			SnapshotMeta: gsc.SnapshotMeta{
+//				Name:      podInfo.Name,
+//				Namespace: podInfo.Namespace,
+//			},
+//			Labels:            podInfo.Labels,
+//			Spec:              podInfo.Spec,
+//			NominatedNodeName: podInfo.NominatedNodeName,
+//		}
+//	})
+//}
+//
+//func mapToNodeInfos(nodeInfos []scalehist.NodeInfo) []gsc.NodeInfo {
+//	return lo.Map(nodeInfos, func(nodeInfo scalehist.NodeInfo, _ int) gsc.NodeInfo {
+//		return gsc.NodeInfo{
+//			SnapshotMeta: gsc.SnapshotMeta{
+//				Name: nodeInfo.Name,
+//			},
+//			Labels:             nodeInfo.Labels,
+//			Taints:             nodeInfo.Taints,
+//			Allocatable:        nodeInfo.Allocatable,
+//			Capacity:           nodeInfo.Capacity,
+//			AllocatableVolumes: nodeInfo.AllocatableVolumes,
+//		}
+//	})
+//}

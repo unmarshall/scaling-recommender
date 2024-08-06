@@ -162,7 +162,11 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) er
 		return np.Name, np
 	})
 	r.state.existingNodes = nodes
-	r.state.priorityClasses = simReq.PriorityClasses
+	r.state.priorityClasses = lo.Map(simReq.PriorityClasses, func(pt v1.PriorityClass, _ int) v1.PriorityClass {
+		newPriorityClass := pt.DeepCopy()
+		newPriorityClass.Namespace = common.DefaultNamespace
+		return *newPriorityClass
+	})
 	return nil
 }
 

@@ -5,6 +5,9 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	gsc "github.com/elankath/gardener-scaling-common"
+	scalehist "github.com/elankath/gardener-scaling-history"
+	"github.com/samber/lo"
 	"io"
 	"log"
 	"net/http"
@@ -27,19 +30,22 @@ func main() {
 	//	os.Exit(1)
 	//}
 	//scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenarios.json"))
-	scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenario_c.json"))
+	scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "garden-i034796-g2-db-replay.json"))
 	dieOnError(err)
-	simRequests, err := util.CreateSimRequests(scenarios)
+	clusterSnapshots := lo.Map(scenarios, func(scenario scalehist.Scenario, index int) gsc.ClusterSnapshot {
+		return scenario.ClusterSnapshot
+	})
+
 	dieOnError(err)
-	for i, simRequest := range simRequests {
-		recommendation, err := runSimulation(simRequest)
+	for _, clusterSnapshot := range clusterSnapshots {
+		recommendation, err := runSimulation(clusterSnapshot)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		caRecommendation := util.ExtractCAScaleUpRecommendation(scenarios[i].NodeGroups)
+		//caRecommendation := util.ExtractCAScaleUpRecommendation(scenarios[i].NodeGroups)
 		prettyPrint(recommendation, "recommendation: ")
-		prettyPrint(caRecommendation, "CA recommendation: ")
+		//prettyPrint(caRecommendation, "CA recommendation: ")
 	}
 }
 
@@ -55,9 +61,9 @@ func dieOnError(err error) {
 	}
 }
 
-func runSimulation(simRequest api.SimulationRequest) (*api.RecommendationResponse, error) {
-	reqURL := "http://localhost:8080/simulation/"
-	reqBytes, err := json.Marshal(simRequest)
+func runSimulation(clusterSnapshot gsc.ClusterSnapshot) (*api.RecommendationResponse, error) {
+	reqURL := "http://localhost:8080/recommend/"
+	reqBytes, err := json.Marshal(clusterSnapshot)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -97,5 +103,5 @@ func runSimulation(simRequest api.SimulationRequest) (*api.RecommendationRespons
 		}
 		return recommendationResponse, nil
 	}
-	return nil, fmt.Errorf("failed simulation: %s, StatusCode: %d, Status:%s", simRequest.ID, response.StatusCode, response.Status)
+	return nil, fmt.Errorf("failed simulation: %s, StatusCode: %d, Status:%s", clusterSnapshot.ID, response.StatusCode, response.Status)
 }

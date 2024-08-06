@@ -1,21 +1,22 @@
 module unmarshall/scaling-recommender
 
-go 1.22
+go 1.22.5
 
 require (
-	github.com/elankath/gardener-scalehist v0.0.0-20240606061103-103cd9bb8f01
+	github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756
+	github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25
 	github.com/gardener/gardener v1.90.3
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/samber/lo v1.46.0
-	github.com/unmarshall/kvcl v0.0.0-20240802094838-558a329bef06
+	github.com/unmarshall/kvcl v0.0.0-20240806085501-30fa579fe03d
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.30.3
 	k8s.io/apimachinery v0.30.3
 	k8s.io/client-go v0.30.3
-	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
-	sigs.k8s.io/controller-runtime v0.17.2
+	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
+	sigs.k8s.io/controller-runtime v0.18.4
 )
 
 require (
@@ -30,10 +31,9 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
-	github.com/evanphx/json-patch/v5 v5.8.0 // indirect
+	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
@@ -44,7 +44,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/cel-go v0.17.7 // indirect
+	github.com/google/cel-go v0.17.8 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -103,46 +103,46 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.29.2 // indirect
-	k8s.io/apiserver v0.29.3 // indirect
+	k8s.io/apiextensions-apiserver v0.30.1 // indirect
+	k8s.io/apiserver v0.30.3 // indirect
 	k8s.io/cloud-provider v0.0.0 // indirect
-	k8s.io/component-base v0.29.3 // indirect
-	k8s.io/component-helpers v0.29.3 // indirect
-	k8s.io/controller-manager v0.29.3 // indirect
+	k8s.io/component-base v0.30.3 // indirect
+	k8s.io/component-helpers v0.30.3 // indirect
+	k8s.io/controller-manager v0.30.3 // indirect
 	k8s.io/csi-translation-lib v0.0.0 // indirect
 	k8s.io/dynamic-resource-allocation v0.0.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
-	k8s.io/kms v0.29.3 // indirect
+	k8s.io/kms v0.30.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/kube-scheduler v0.29.3 // indirect
-	k8s.io/kubelet v0.29.3 // indirect
-	k8s.io/kubernetes v1.29.3 // indirect
+	k8s.io/kube-scheduler v0.30.3 // indirect
+	k8s.io/kubelet v0.30.3 // indirect
+	k8s.io/kubernetes v1.30.3 // indirect
 	k8s.io/mount-utils v0.0.0 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.28.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
 replace (
-	k8s.io/api => k8s.io/api v0.29.3
-	k8s.io/apimachinery => k8s.io/apimachinery v0.29.3
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.29.3
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.29.3
-	//k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.29.3
-	k8s.io/component-helpers => k8s.io/component-helpers v0.29.3
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.29.3
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.29.3
-	k8s.io/endpointslice => k8s.io/endpointslice v0.29.3
-	//k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.29.3
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.29.3
-	//k8s.io/kube-proxy => k8s.io/kube-proxy v0.29.3
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.29.3
-	k8s.io/kubectl => k8s.io/kubectl v0.29.3
-	k8s.io/kubelet => k8s.io/kubelet v0.29.3
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.29.3
-	//k8s.io/metrics => k8s.io/metrics v0.29.3
-	k8s.io/mount-utils => k8s.io/mount-utils v0.29.3
-	//k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.29.3
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.29.3
+	k8s.io/api => k8s.io/api v0.30.3
+	k8s.io/apimachinery => k8s.io/apimachinery v0.30.3
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.30.3
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.30.3
+	//k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.30.3
+	k8s.io/component-helpers => k8s.io/component-helpers v0.30.3
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.30.3
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.30.3
+	k8s.io/endpointslice => k8s.io/endpointslice v0.30.3
+	//k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.30.3
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.30.3
+	//k8s.io/kube-proxy => k8s.io/kube-proxy v0.30.3
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.30.3
+	k8s.io/kubectl => k8s.io/kubectl v0.30.3
+	k8s.io/kubelet => k8s.io/kubelet v0.30.3
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.30.3
+	//k8s.io/metrics => k8s.io/metrics v0.30.3
+	k8s.io/mount-utils => k8s.io/mount-utils v0.30.3
+	//k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.30.3
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.30.3
 )
