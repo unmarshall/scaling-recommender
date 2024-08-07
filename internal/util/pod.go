@@ -28,8 +28,8 @@ func PodSchedulingFailed(pod *corev1.Pod) bool {
 	return false
 }
 
-func IsSystemPod(pod *corev1.Pod) bool {
-	if podRole, ok := pod.Labels["gardener.cloud/role"]; ok {
+func IsSystemPod(podLabels map[string]string) bool {
+	if podRole, ok := podLabels["gardener.cloud/role"]; ok {
 		return podRole == "system-component"
 	}
 	return false
