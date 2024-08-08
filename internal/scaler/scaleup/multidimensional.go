@@ -170,9 +170,17 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) er
 	return nil
 }
 
+func (r *recommender) computeTotalZonesAcrossNodePools() int {
+	totalZones := 0
+	for _, np := range r.state.eligibleNodePools {
+		totalZones += np.Zones.Len()
+	}
+	return totalZones
+}
+
 func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult {
 	var results []*runResult
-	resultCh := make(chan *runResult, len(r.state.eligibleNodePools))
+	resultCh := make(chan *runResult, r.computeTotalZonesAcrossNodePools())
 	r.triggerNodePoolSimulations(ctx, resultCh, runNum)
 
 	// label, taint, result chan, error chan, close chan
@@ -279,6 +287,8 @@ func (r *recommender) cleanUpNodePoolSimRun(ctx context.Context, runRef lo.Tuple
 	var errs error
 	errs = errors.Join(errs, r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, labels))
 	errs = errors.Join(errs, r.nc.DeleteNodesMatchingLabels(ctx, labels))
+	schedPodLabels := util.AsMap(createSimRunRefForSchedPods(runRef))
+	errs = errors.Join(errs, r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, schedPodLabels))
 	return errs
 }
 
@@ -310,7 +320,8 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		if podCopy.Labels == nil {
 			podCopy.Labels = make(map[string]string)
 		}
-		podCopy.Labels[runRef.A] = runRef.B
+		schedSimRunRef := createSimRunRefForSchedPods(runRef)
+		podCopy.Labels[schedSimRunRef.A] = schedSimRunRef.B
 		podCopy.ObjectMeta.UID = ""
 		podCopy.ObjectMeta.ResourceVersion = ""
 		podCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
@@ -332,6 +343,10 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		return err
 	}
 	return nil
+}
+
+func createSimRunRefForSchedPods(runRef lo.Tuple2[string, string]) lo.Tuple2[string, string] {
+	return lo.Tuple2[string, string]{A: runRef.A, B: runRef.B + "-sched"}
 }
 
 func (r *recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, runRef lo.Tuple2[string, string]) error {

@@ -109,10 +109,10 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 	for _, pc := range cs.PriorityClasses {
 		simRequest.PriorityClasses = append(simRequest.PriorityClasses, pc.PriorityClass)
 	}
-	systemComponentResourcesPerNode := collectSystemComponentResourceRequestsByNode(cs.Pods)
+	systemComponentResourcesPerNode := collectKubeSystemPodsResourceRequestsByNode(cs.Pods)
 
 	for _, p := range cs.Pods {
-		if !util.IsSystemPod(p.Labels) {
+		if p.Namespace != "kube-system" {
 			pod := api.PodInfo{
 				Name:              p.Name,
 				Labels:            p.Labels,
@@ -126,7 +126,7 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 
 	for _, n := range cs.Nodes {
 		systemComponentRes := systemComponentResourcesPerNode[n.Name]
-		revisedAllocatable := computeRevisedAllocatable(n.Allocatable, systemComponentRes)
+		revisedAllocatable := computeRevisedAllocatable(n.Allocatable, systemComponentRes, nil)
 		node := api.NodeInfo{
 			Name:        n.Name,
 			Labels:      n.Labels,
@@ -161,11 +161,15 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 			err = fmt.Errorf("createSimulationRequest cannot find node template for workerpool %q", wp.Name)
 			return
 		}
-		computeNodeTemplateAllocatable(nodeTemplate, maxResourceList)
+		computeRevisedResourcesForNodeTemplate(nodeTemplate, maxResourceList)
 		nodeTemplates[wp.MachineType] = *nodeTemplate
 	}
 	simRequest.NodeTemplates = nodeTemplates
 	return
+}
+
+func reviseNodeTemplateResources(nodeTemplate *api.NodeTemplate, maxResourceList corev1.ResourceList) {
+	nodeTemplate.Allocatable = computeRevisedAllocatable(nodeTemplate.Capacity, maxResourceList, nil)
 }
 
 func findNodeTemplate(instanceType string, csNodeTemplates map[string]gsc.NodeTemplate) *api.NodeTemplate {
@@ -189,27 +193,45 @@ func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
 	return nodeCountPerPool
 }
 
-// computeNodeTemplateAllocatable will reduce the allocatable for a node by subtracting the total CPU and Memory that is consumed
-// by all system components that are deployed in the kube-system namespace of the shoot cluster.
-func computeNodeTemplateAllocatable(nodeTemplate *api.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
-	nodeTemplate.Allocatable = computeRevisedAllocatable(nodeTemplate.Allocatable, sysComponentMaxResourceList)
-}
-
-func computeRevisedAllocatable(originalAllocatable corev1.ResourceList, systemComponentsResources corev1.ResourceList) corev1.ResourceList {
+func computeRevisedResourcesForNodeTemplate(nodeTemplate *api.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
 	kubeReservedCPU := resource.MustParse("80m")
 	kubeReservedMemory := resource.MustParse("1Gi")
+	kubeReservedResources := corev1.ResourceList{corev1.ResourceCPU: kubeReservedCPU, corev1.ResourceMemory: kubeReservedMemory}
+	nodeTemplate.Allocatable = computeRevisedAllocatable(nodeTemplate.Capacity, sysComponentMaxResourceList, kubeReservedResources)
+	revisedPods := nodeTemplate.Allocatable.Pods()
+	revisedPods.Set(110)
+	nodeTemplate.Allocatable[corev1.ResourcePods] = *revisedPods
+	nodeTemplate.Capacity[corev1.ResourcePods] = *revisedPods
+}
+
+// computeNodeTemplateAllocatable will reduce the allocatable for a node by subtracting the total CPU and Memory that is consumed
+//// by all system components that are deployed in the kube-system namespace of the shoot cluster.
+//func computeNodeTemplateAllocatable(nodeTemplate *api.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
+//	kubeReservedCPU := resource.MustParse("80m")
+//	kubeReservedMemory := resource.MustParse("1Gi")
+//	kubeReservedResources := corev1.ResourceList{corev1.ResourceCPU: kubeReservedCPU, corev1.ResourceMemory: kubeReservedMemory}
+//	nodeTemplate.Allocatable = computeRevisedAllocatable(nodeTemplate.Capacity, sysComponentMaxResourceList, kubeReservedResources)
+//}
+
+func computeRevisedAllocatable(originalAllocatable corev1.ResourceList, systemComponentsResources corev1.ResourceList, kubeReservedResources corev1.ResourceList) corev1.ResourceList {
 	revisedNodeAllocatable := originalAllocatable.DeepCopy()
+	revisedMem := revisedNodeAllocatable.Memory()
+	revisedMem.Sub(systemComponentsResources[corev1.ResourceMemory])
 
-	revisedNodeAllocatable.Memory().Sub(systemComponentsResources[corev1.ResourceMemory])
-	revisedNodeAllocatable.Memory().Sub(kubeReservedMemory)
+	revisedCPU := revisedNodeAllocatable.Cpu()
+	revisedCPU.Sub(systemComponentsResources[corev1.ResourceCPU])
 
-	revisedNodeAllocatable.Cpu().Sub(systemComponentsResources[corev1.ResourceCPU])
-	revisedNodeAllocatable.Cpu().Sub(kubeReservedCPU)
+	if kubeReservedResources != nil {
+		revisedMem.Sub(kubeReservedResources[corev1.ResourceMemory])
+		revisedCPU.Sub(kubeReservedResources[corev1.ResourceCPU])
+	}
+	revisedNodeAllocatable[corev1.ResourceMemory] = *revisedMem
+	revisedNodeAllocatable[corev1.ResourceCPU] = *revisedCPU
 	return revisedNodeAllocatable
 }
 
 func getMaxSystemComponentRequestsAcrossNodes(pods []gsc.PodInfo) (corev1.ResourceList, error) {
-	nodeSystemComponentResourceList := collectSystemComponentResourceRequestsByNode(pods)
+	nodeSystemComponentResourceList := collectKubeSystemPodsResourceRequestsByNode(pods)
 	maxResourceList := corev1.ResourceList{}
 	for _, r := range nodeSystemComponentResourceList {
 		for name, q := range r {
@@ -226,9 +248,9 @@ func getMaxSystemComponentRequestsAcrossNodes(pods []gsc.PodInfo) (corev1.Resour
 	return maxResourceList, nil
 }
 
-func collectSystemComponentResourceRequestsByNode(pods []gsc.PodInfo) map[string]corev1.ResourceList {
+func collectKubeSystemPodsResourceRequestsByNode(pods []gsc.PodInfo) map[string]corev1.ResourceList {
 	systemPods := lo.Filter(pods, func(po gsc.PodInfo, _ int) bool {
-		return util.IsSystemPod(po.Labels)
+		return po.Namespace == "kube-system"
 	})
 	podsByNode := lo.GroupBy(systemPods, func(pod gsc.PodInfo) string {
 		return pod.Spec.NodeName
