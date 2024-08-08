@@ -14,7 +14,6 @@ import (
 	"time"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler"
-	"unmarshall/scaling-recommender/internal/scaler/scorer"
 	"unmarshall/scaling-recommender/internal/simulation/web"
 	"unmarshall/scaling-recommender/internal/util"
 )
@@ -59,13 +58,12 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	logger := baseLogger.With("id", simRequest.ID)
 	logger.Info("received simulation request", "request", simRequest.ID)
 
-	recommender := h.engine.RecommenderFactory().GetRecommender(scaler.MultiDimensionScoringScaleUpAlgo)
+	recommender := h.engine.RecommenderFactory().GetRecommender(scaler.DefaultScaleUpAlgo)
 	startTime := time.Now()
-	nodeScorer, err := scorer.NewScorer(h.engine.ScoringStrategy(), h.engine.PricingAccess(), simRequest.NodePools)
 	if err != nil {
 		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
 	}
-	result := recommender.Run(r.Context(), nodeScorer, simRequest)
+	result := recommender.Run(r.Context(), h.engine.GetScorer(), simRequest)
 	if result.IsError() {
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
 		return

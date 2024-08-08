@@ -3,6 +3,7 @@ package scaler
 import (
 	"context"
 	"io"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"net/http"
 
 	corev1 "k8s.io/api/core/v1"
@@ -13,29 +14,35 @@ import (
 type AlgoVariant string
 
 const (
-	MultiDimensionScoringScaleUpAlgo AlgoVariant = "multi-dimensional-scoring-scale-up"
-	DescendingCostScaleDownAlgo      AlgoVariant = "descending-cost-scale-down"
+	DefaultScaleUpAlgo AlgoVariant = "default-scale-up"
 )
 
-type NodeScore struct {
-	MemWasteRatio    float64
-	CpuWasteRatio    float64
-	UnscheduledRatio float64
-	CostRatio        float64
-	CumulativeScore  float64
+// ScoringStrategy defines the strategy used to score nodes.
+type ScoringStrategy string
+
+const (
+	// CostOnlyStrategy is a scoring strategy that scores nodes based on cost only.
+	CostOnlyStrategy ScoringStrategy = "cost-only"
+)
+
+var scoringStrategies = sets.New(string(CostOnlyStrategy))
+
+// IsScoringStrategySupported checks if the passed in scoring strategy is supported.
+func IsScoringStrategySupported(strategy string) bool {
+	return scoringStrategies.Has(strategy)
+}
+
+type ScorerFactory interface {
+	GetScorer(scoringStrategy ScoringStrategy) (Scorer, error)
 }
 
 type Scorer interface {
-	Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) NodeScore
+	Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) float64
 }
 
 type LogWriterFlusher interface {
 	io.Writer
 	http.Flusher
-}
-
-func NewScaleDownRecommendation(scaleDown []string) api.Recommendation {
-	return api.Recommendation{ScaleDown: scaleDown}
 }
 
 type RecommenderFactory interface {

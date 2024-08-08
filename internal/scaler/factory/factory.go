@@ -15,7 +15,7 @@ type factory struct {
 func New(vcp kvclapi.ControlPlane, logger *slog.Logger) scaler.RecommenderFactory {
 	algos := make(map[scaler.AlgoVariant]scaler.Recommender)
 	// Register all scaling algorithms
-	algos[scaler.MultiDimensionScoringScaleUpAlgo] = scaleup.NewRecommender(vcp, logger)
+	algos[scaler.DefaultScaleUpAlgo] = scaleup.NewRecommender(vcp, logger)
 	return &factory{
 		algos: algos,
 	}

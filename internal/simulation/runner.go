@@ -13,6 +13,7 @@ import (
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/scaler/factory"
+	"unmarshall/scaling-recommender/internal/scaler/scorer"
 )
 
 type Engine interface {
@@ -21,8 +22,8 @@ type Engine interface {
 	VirtualControlPlane() kvclapi.ControlPlane
 	PricingAccess() pricing.InstancePricingAccess
 	RecommenderFactory() scaler.RecommenderFactory
-	ScoringStrategy() string
 	TargetClient() client.Client
+	GetScorer() scaler.Scorer
 }
 
 type engine struct {
@@ -31,6 +32,7 @@ type engine struct {
 	pricingAccess      pricing.InstancePricingAccess
 	recommenderFactory scaler.RecommenderFactory
 	appConfig          api.AppConfig
+	scorer             scaler.Scorer
 	logger             *slog.Logger
 	targetClient       client.Client
 }
@@ -50,11 +52,24 @@ func (e *engine) Start(ctx context.Context) error {
 	if err := e.initializePricingAccess(); err != nil {
 		return err
 	}
+	if err := e.initializeScorer(); err != nil {
+		return err
+	}
 	if err := e.createTargetClient(); err != nil {
 		return err
 	}
 	e.recommenderFactory = factory.New(e.virtualCluster, e.logger)
 	return e.startHTTPServer()
+}
+
+func (e *engine) initializeScorer() error {
+	scorerFactory := scorer.NewFactory(e.pricingAccess)
+	s, err := scorerFactory.GetScorer(scaler.ScoringStrategy(e.appConfig.ScoringStrategy))
+	if err != nil {
+		return err
+	}
+	e.scorer = s
+	return nil
 }
 
 func (e *engine) startEmbeddedVirtualCluster(ctx context.Context) {
@@ -122,6 +137,10 @@ func (e *engine) VirtualControlPlane() kvclapi.ControlPlane {
 
 func (e *engine) PricingAccess() pricing.InstancePricingAccess {
 	return e.pricingAccess
+}
+
+func (e *engine) GetScorer() scaler.Scorer {
+	return e.scorer
 }
 
 func (e *engine) RecommenderFactory() scaler.RecommenderFactory {
