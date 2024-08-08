@@ -2,6 +2,7 @@ package costmemwastage
 
 import (
 	"log/slog"
+	"unmarshall/scaling-recommender/internal/scaler/scorer"
 
 	corev1 "k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/api"
@@ -19,6 +20,10 @@ func NewScorer(pa pricing.InstancePricingAccess, nodePools []api.NodePool) scale
 	return &_scorer{
 		instanceTypeCostRatio: instanceTypeCostRatios,
 	}
+}
+
+func (s *_scorer) GetScoringStrategy() scorer.ScoringStrategy {
+	return scorer.CostCpuMemWastageStrategy
 }
 
 func (s *_scorer) Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) scaler.NodeScore {

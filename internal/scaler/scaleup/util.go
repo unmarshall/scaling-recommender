@@ -6,12 +6,14 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unmarshall/scaling-recommender/internal/scaler/scorer"
+	"unmarshall/scaling-recommender/internal/scaler/scorer/leastcost"
 
 	"golang.org/x/exp/rand"
 	"unmarshall/scaling-recommender/api"
 )
 
-func getWinningRunResult(results []*runResult) *runResult {
+func getWinningRunResult(results []*runResult, scoringStrategy scorer.ScoringStrategy) *runResult {
 	if len(results) == 0 {
 		return nil
 	}
@@ -29,9 +31,26 @@ func getWinningRunResult(results []*runResult) *runResult {
 			winningRunResults = append(winningRunResults, v)
 		}
 	}
-	rand.Seed(uint64(time.Now().UnixNano()))
-	winningIndex := rand.Intn(len(winningRunResults))
-	winner = winningRunResults[winningIndex]
+	if scoringStrategy == scorer.LeastCostStrategy {
+		if len(winningRunResults) > 1 {
+			maxNodeCapacity := 0.0
+			for _, winResult := range winningRunResults {
+				resourceUnits := 0.0
+				resourceUnits = resourceUnits + (float64(winResult.node.Status.Allocatable.Memory().Value()) * leastcost.ResourceUnitsPerMemory) //TODO: verify whether mem is stored in GB
+				resourceUnits = resourceUnits + (float64(winResult.node.Status.Allocatable.Cpu().Value()) * leastcost.ResourceUnitsPerCPU)       //TODO: verify whether cpu is stored in cores
+
+				if resourceUnits > maxNodeCapacity {
+					maxNodeCapacity = resourceUnits
+					winner = winResult
+				}
+			}
+		}
+
+	} else {
+		rand.Seed(uint64(time.Now().UnixNano()))
+		winningIndex := rand.Intn(len(winningRunResults))
+		winner = winningRunResults[winningIndex]
+	}
 	return winner
 }
 

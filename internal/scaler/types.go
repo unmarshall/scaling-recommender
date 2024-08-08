@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"unmarshall/scaling-recommender/internal/scaler/scorer"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,6 +28,7 @@ type NodeScore struct {
 
 type Scorer interface {
 	Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) NodeScore
+	GetScoringStrategy() scorer.ScoringStrategy
 }
 
 type LogWriterFlusher interface {

@@ -47,6 +47,7 @@ type recommender struct {
 type runResult struct {
 	nodePoolName    string
 	nodeName        string
+	node            corev1.Node
 	zone            string
 	instanceType    string
 	nodeScore       scaler.NodeScore
@@ -180,7 +181,7 @@ func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult 
 	if errs != nil {
 		return errorRunResult(errs)
 	}
-	winnerRunResult := getWinningRunResult(results)
+	winnerRunResult := getWinningRunResult(results, r.scorer.GetScoringStrategy())
 	printResultsSummary(runNum, results, winnerRunResult)
 	return winnerRunResult
 }
@@ -260,7 +261,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			return
 		}
 		ns := r.scorer.Compute(node, simRunCandidatePods)
-		resultCh <- r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node.Name, ns, simRunCandidatePods)
+		resultCh <- r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, *node, ns, simRunCandidatePods)
 	}
 }
 
@@ -362,7 +363,7 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 	return unscheduledPods, r.pc.CreatePods(ctx, unscheduledPods...)
 }
 
-func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeName string, score scaler.NodeScore, pods []corev1.Pod) *runResult {
+func (r *recommender) computeRunResult(nodePoolName, instanceType, zone string, node corev1.Node, score scaler.NodeScore, pods []corev1.Pod) *runResult {
 	if score.UnscheduledRatio == 1.0 {
 		return &runResult{}
 	}
@@ -377,7 +378,8 @@ func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeNam
 	}
 	return &runResult{
 		nodePoolName:    nodePoolName,
-		nodeName:        toOriginalResourceName(nodeName),
+		nodeName:        toOriginalResourceName(node.Name),
+		node:            node,
 		zone:            zone,
 		instanceType:    instanceType,
 		nodeScore:       score,

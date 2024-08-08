@@ -5,6 +5,7 @@ import (
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/pricing"
 	"unmarshall/scaling-recommender/internal/scaler"
+	"unmarshall/scaling-recommender/internal/scaler/scorer"
 	"unmarshall/scaling-recommender/internal/util"
 )
 
@@ -17,6 +18,10 @@ func NewScorer(pa pricing.InstancePricingAccess, nodePools []api.NodePool) scale
 	return &_scorer{
 		instanceTypeCost: instanceTypeCosts,
 	}
+}
+
+func (s *_scorer) GetScoringStrategy() scorer.ScoringStrategy {
+	return scorer.CostOnlyStrategy
 }
 
 func (s *_scorer) Compute(scaledNode *corev1.Node, _ []corev1.Pod) scaler.NodeScore {
