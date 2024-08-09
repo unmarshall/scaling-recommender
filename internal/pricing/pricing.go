@@ -6,15 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/util/json"
-	"unmarshall/scaling-recommender/api"
 )
 
 type InstancePricingAccess interface {
 	Get3YearReservedPricing(instanceType string) float64
-	ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64
-	GetCostForInstanceTypes(nodePool []api.NodePool) map[string]float64
+	GetOnDemandPricing(instanceType string) float64
 }
 
 func NewInstancePricingAccess(provider string) (InstancePricingAccess, error) {
@@ -39,24 +36,13 @@ func (a *access) Get3YearReservedPricing(instanceType string) float64 {
 	return float64(price.EDPPrice.Reserved3Year)
 }
 
-func (a *access) ComputeCostRatiosForInstanceTypes(nodePools []api.NodePool) map[string]float64 {
-	instanceTypeCostRatios := make(map[string]float64)
-	totalCost := lo.Reduce[api.NodePool, float64](nodePools, func(totalCost float64, np api.NodePool, _ int) float64 {
-		return totalCost + a.Get3YearReservedPricing(np.InstanceType)
-	}, 0.0)
-	for _, np := range nodePools {
-		price := a.Get3YearReservedPricing(np.InstanceType)
-		instanceTypeCostRatios[np.InstanceType] = price / totalCost
+func (a *access) GetOnDemandPricing(instanceType string) float64 {
+	price, ok := a.pricingMap[instanceType]
+	if !ok {
+		slog.Error("instance type not found in pricing map", "instanceType", instanceType)
+		return 0
 	}
-	return instanceTypeCostRatios
-}
-
-func (a *access) GetCostForInstanceTypes(nodePool []api.NodePool) map[string]float64 {
-	instanceTypeCosts := make(map[string]float64)
-	for _, np := range nodePool {
-		instanceTypeCosts[np.InstanceType] = a.Get3YearReservedPricing(np.InstanceType)
-	}
-	return instanceTypeCosts
+	return float64(price.EDPPrice.PayAsYouGo)
 }
 
 func (a *access) initializeProviderPricing() (err error) {
