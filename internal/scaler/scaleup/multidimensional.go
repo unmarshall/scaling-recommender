@@ -51,9 +51,10 @@ type runResult struct {
 	nodeName        string
 	zone            string
 	instanceType    string
-	nodeScore       scaler.NodeScore
+	nodeScore       float64
 	unscheduledPods []corev1.Pod
 	nodeToPods      map[string][]types.NamespacedName
+	nodeCapacity    corev1.ResourceList
 	err             error
 }
 
@@ -277,7 +278,7 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			return
 		}
 		ns := r.scorer.Compute(node, simRunCandidatePods)
-		resultCh <- r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node.Name, ns, simRunCandidatePods)
+		resultCh <- r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, simRunCandidatePods)
 	}
 }
 
@@ -386,8 +387,8 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 	return unscheduledPods, r.pc.CreatePods(ctx, unscheduledPods...)
 }
 
-func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeName string, score scaler.NodeScore, pods []corev1.Pod) *runResult {
-	if score.UnscheduledRatio == 1.0 {
+func (r *recommender) computeRunResult(nodePoolName, instanceType, zone string, node *corev1.Node, nodeScore float64, pods []corev1.Pod) *runResult {
+	if nodeScore == 0.0 {
 		return &runResult{}
 	}
 	unscheduledPods := make([]corev1.Pod, 0, len(pods))
@@ -401,12 +402,13 @@ func (r *recommender) computeRunResult(nodePoolName, instanceType, zone, nodeNam
 	}
 	return &runResult{
 		nodePoolName:    nodePoolName,
-		nodeName:        toOriginalResourceName(nodeName),
+		nodeName:        toOriginalResourceName(node.Name),
 		zone:            zone,
 		instanceType:    instanceType,
-		nodeScore:       score,
+		nodeScore:       nodeScore,
 		unscheduledPods: unscheduledPods,
 		nodeToPods:      nodeToPods,
+		nodeCapacity:    node.Status.Capacity,
 	}
 }
 

@@ -2,37 +2,50 @@ package scaleup
 
 import (
 	"fmt"
+	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
 	"log/slog"
-	"math"
 	"strings"
-	"time"
-
-	"golang.org/x/exp/rand"
 	"unmarshall/scaling-recommender/api"
+	"unmarshall/scaling-recommender/internal/scaler"
 )
 
 func getWinningRunResult(results []*runResult) *runResult {
 	if len(results) == 0 {
 		return nil
 	}
-	var winner *runResult
-	minScore := math.MaxFloat64
+
+	var maxScore float64
 	var winningRunResults []*runResult
 	for _, v := range results {
-		if v.nodeScore.CumulativeScore < minScore {
-			winner = v
-			minScore = v.nodeScore.CumulativeScore
+		if v.nodeScore > maxScore {
+			maxScore = v.nodeScore
 		}
 	}
+
 	for _, v := range results {
-		if v.nodeScore.CumulativeScore == minScore {
+		if v.nodeScore == maxScore {
 			winningRunResults = append(winningRunResults, v)
 		}
 	}
-	rand.Seed(uint64(time.Now().UnixNano()))
-	winningIndex := rand.Intn(len(winningRunResults))
-	winner = winningRunResults[winningIndex]
-	return winner
+	if len(winningRunResults) == 1 {
+		return winningRunResults[0]
+	}
+
+	return tieBreak(winningRunResults)
+}
+
+func tieBreak(candidates []*runResult) *runResult {
+	return lo.MaxBy(candidates, func(r1 *runResult, r2 *runResult) bool {
+		return computeTotalResourceUnits(r1.nodeCapacity) > computeTotalResourceUnits(r2.nodeCapacity)
+	})
+}
+
+func computeTotalResourceUnits(nodeCapacity corev1.ResourceList) float64 {
+	var totalResourceUnits float64
+	totalResourceUnits += float64(nodeCapacity.Cpu().Value() * scaler.CPUResourceUnitMultiplier)
+	totalResourceUnits += float64(nodeCapacity.Memory().Value() * scaler.MemResourceUnitMultiplier)
+	return totalResourceUnits
 }
 
 func printResultsSummary(runNumber int, results []*runResult, winningResult *runResult) {

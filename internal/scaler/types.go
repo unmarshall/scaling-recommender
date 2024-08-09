@@ -17,6 +17,13 @@ const (
 	DefaultScaleUpAlgo AlgoVariant = "default-scale-up"
 )
 
+const (
+	// MemResourceUnitMultiplier is a multiplier for memory resource units.
+	MemResourceUnitMultiplier = 1
+	// CPUResourceUnitMultiplier is a multiplier for CPU resource units.
+	CPUResourceUnitMultiplier = 6
+)
+
 // ScoringStrategy defines the strategy used to score nodes.
 type ScoringStrategy string
 

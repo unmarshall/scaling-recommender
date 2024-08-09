@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 	"unmarshall/scaling-recommender/api"
-	"unmarshall/scaling-recommender/internal/scaler/scorer"
+	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/simulation"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -73,7 +73,7 @@ func parseCmdArgs() (api.AppConfig, error) {
 	fs.StringVar(&config.BinaryAssetsPath, "binary-assets-path", "", "path to the binary assets (kube-apiserver, etcd)")
 	fs.StringVar(&config.Provider, "provider", "", "provider of the target shoot")
 	fs.StringVar(&config.TargetKVCLKubeConfigPath, "target-kvcl-kubeconfig", "", "path to the kubeconfig of the target cluster")
-	fs.StringVar(&config.ScoringStrategy, "scoring-strategy", string(scorer.CostCpuMemWastageStrategy), "scoring strategy")
+	fs.StringVar(&config.ScoringStrategy, "scoring-strategy", string(scaler.CostOnlyStrategy), "scoring strategy")
 
 	if err := fs.Parse(args); err != nil {
 		return config, err
@@ -91,7 +91,7 @@ func validateConfig(config api.AppConfig) error {
 	if config.TargetKVCLKubeConfigPath == "" {
 		return fmt.Errorf("kubeconfig path is required")
 	}
-	if !scorer.IsScoringStrategySupported(config.ScoringStrategy) {
+	if !scaler.IsScoringStrategySupported(config.ScoringStrategy) {
 		return fmt.Errorf("scoring strategy %s is not supported", config.ScoringStrategy)
 	}
 	return nil
