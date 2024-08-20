@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
+	gsc "github.com/elankath/gardener-scaling-common"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -85,7 +86,7 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) ([]*corev1.Node, erro
 	return nodes, nil
 }
 
-func ConstructNodeForSimRun(nodeTemplate api.NodeTemplate, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {
+func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {
 	nodeNamePrefix, err := GenerateRandomString(4)
 	if err != nil {
 		return nil, err
@@ -98,11 +99,11 @@ func ConstructNodeForSimRun(nodeTemplate api.NodeTemplate, poolName, zone string
 	taints := []corev1.Taint{
 		{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
 	}
-
+	taints = append(taints, nodeTemplate.Taints...)
 	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, taints), nil
 }
 
-func ConstructNodeFromNodeTemplate(nodeTemplate api.NodeTemplate, poolName, zone string) (*corev1.Node, error) {
+func ConstructNodeFromNodeTemplate(nodeTemplate gsc.NodeTemplate, poolName, zone string) (*corev1.Node, error) {
 	nodeNamePrefix, err := GenerateRandomString(4)
 	if err != nil {
 		return nil, err
@@ -111,11 +112,10 @@ func ConstructNodeFromNodeTemplate(nodeTemplate api.NodeTemplate, poolName, zone
 	labels := nodeTemplate.Labels
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[common.TopologyHostLabelKey] = nodeName
-
-	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, nil), nil
+	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, nodeTemplate.Taints), nil
 }
 
-func doConstructNodeFromNodeTemplate(nodeTemplate api.NodeTemplate, newNodeName string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
+func doConstructNodeFromNodeTemplate(nodeTemplate gsc.NodeTemplate, newNodeName string, labels map[string]string, taints []corev1.Taint) *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newNodeName,

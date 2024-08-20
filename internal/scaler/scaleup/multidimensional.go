@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	gsc "github.com/elankath/gardener-scaling-common"
 	v1 "k8s.io/api/scheduling/v1"
 	"log/slog"
 	"slices"
@@ -41,7 +42,7 @@ type recommender struct {
 	client        client.Client
 	scorer        scaler.Scorer
 	state         simulationState
-	nodeTemplates map[string]api.NodeTemplate
+	nodeTemplates map[string]gsc.NodeTemplate
 	baseLogger    *slog.Logger
 	logger        *slog.Logger
 }
@@ -304,9 +305,9 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		nodeCopy.ObjectMeta.UID = ""
 		nodeCopy.ObjectMeta.ResourceVersion = ""
 		nodeCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
-		nodeCopy.Spec.Taints = []corev1.Taint{
-			{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
-		}
+		nodeCopy.Spec.Taints = append(nodeCopy.Spec.Taints, corev1.Taint{
+			Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule,
+		})
 		clonedNodes = append(clonedNodes, nodeCopy)
 	}
 	if err := kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, clonedNodes...); err != nil {
@@ -326,9 +327,9 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		podCopy.ObjectMeta.UID = ""
 		podCopy.ObjectMeta.ResourceVersion = ""
 		podCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
-		podCopy.Spec.Tolerations = []corev1.Toleration{
-			{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule, Operator: corev1.TolerationOpEqual},
-		}
+		podCopy.Spec.Tolerations = append(podCopy.Spec.Tolerations, corev1.Toleration{
+			Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule, Operator: corev1.TolerationOpEqual,
+		})
 		if len(podCopy.Spec.TopologySpreadConstraints) > 0 {
 			updatedTSC := make([]corev1.TopologySpreadConstraint, 0, len(podCopy.Spec.TopologySpreadConstraints))
 			for _, tsc := range podCopy.Spec.TopologySpreadConstraints {

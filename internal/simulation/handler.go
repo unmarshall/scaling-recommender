@@ -2,6 +2,7 @@ package simulation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/elankath/gardener-scaling-common"
 	"github.com/samber/lo"
@@ -11,8 +12,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 	"unmarshall/scaling-recommender/api"
+	"unmarshall/scaling-recommender/internal/common"
 	"unmarshall/scaling-recommender/internal/scaler"
 	"unmarshall/scaling-recommender/internal/simulation/web"
 	"unmarshall/scaling-recommender/internal/util"
@@ -60,9 +63,6 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 
 	recommender := h.engine.RecommenderFactory().GetRecommender(scaler.DefaultScaleUpAlgo)
 	startTime := time.Now()
-	if err != nil {
-		web.ErrorResponse(w, http.StatusInternalServerError, err.Error())
-	}
 	result := recommender.Run(r.Context(), h.engine.GetScorer(), simRequest)
 	if result.IsError() {
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
@@ -84,8 +84,9 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) applyRecommendation(ctx context.Context, recommendations []api.ScaleUpRecommendation, nodeTemplates map[string]api.NodeTemplate) error {
+func (h *Handler) applyRecommendation(ctx context.Context, recommendations []api.ScaleUpRecommendation, nodeTemplates map[string]gsc.NodeTemplate) error {
 	targetClient := h.engine.TargetClient()
+	var nodesToCreate []*corev1.Node
 	for _, r := range recommendations {
 		slog.Info("Applying recommendation", "nodePool", r.NodePoolName, "zone", r.Zone, "instanceType", r.InstanceType, "incrementBy", r.IncrementBy)
 		for i := int32(0); i < r.IncrementBy; i++ {
@@ -94,12 +95,50 @@ func (h *Handler) applyRecommendation(ctx context.Context, recommendations []api
 			if err != nil {
 				return err
 			}
-			if err = targetClient.Create(ctx, node); err != nil {
-				return err
-			}
+			nodesToCreate = append(nodesToCreate, node)
 		}
 	}
-	return nil
+	return createAndUntaintNodes(ctx, targetClient, nodesToCreate)
+}
+
+func createAndUntaintNodes(ctx context.Context, cl client.Client, nodes []*corev1.Node) error {
+	if err := createNodes(ctx, cl, nodes); err != nil {
+		return err
+	}
+	return untaintNodes(ctx, cl, common.NotReadyTaintKey, nodes)
+}
+
+func createNodes(ctx context.Context, cl client.Client, nodes []*corev1.Node) error {
+	var errs error
+	for _, node := range nodes {
+		node.ObjectMeta.ResourceVersion = ""
+		node.ObjectMeta.UID = ""
+		errs = errors.Join(errs, cl.Create(ctx, node))
+	}
+	return errs
+}
+
+func untaintNodes(ctx context.Context, cl client.Client, taintKey string, nodes []*corev1.Node) error {
+	var errs error
+	failedToPatchNodeNames := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		patch := client.MergeFromWithOptions(node.DeepCopy(), client.MergeFromWithOptimisticLock{})
+		var newTaints []corev1.Taint
+		for _, taint := range node.Spec.Taints {
+			if taint.Key != taintKey {
+				newTaints = append(newTaints, taint)
+			}
+		}
+		node.Spec.Taints = newTaints
+		if err := cl.Patch(ctx, node, patch); err != nil {
+			failedToPatchNodeNames = append(failedToPatchNodeNames, node.Name)
+			errs = errors.Join(errs, err)
+		}
+	}
+	if errs != nil {
+		slog.Error("failed to remove taint from nodes", "taint", taintKey, "nodes", failedToPatchNodeNames, "error", errs)
+	}
+	return errs
 }
 
 func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.SimulationRequest, err error) {
@@ -141,7 +180,7 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 	if err != nil {
 		return api.SimulationRequest{}, err
 	}
-	nodeTemplates := make(map[string]api.NodeTemplate, len(cs.WorkerPools))
+	nodeTemplates := make(map[string]gsc.NodeTemplate, len(cs.WorkerPools))
 	for _, wp := range cs.WorkerPools {
 		count := nodeCountPerPool[wp.Name]
 		nodePool := api.NodePool{
@@ -166,18 +205,10 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 	return
 }
 
-func reviseNodeTemplateResources(nodeTemplate *api.NodeTemplate, maxResourceList corev1.ResourceList) {
-	nodeTemplate.Allocatable = computeRevisedAllocatable(nodeTemplate.Capacity, maxResourceList, nil)
-}
-
-func findNodeTemplate(instanceType string, csNodeTemplates map[string]gsc.NodeTemplate) *api.NodeTemplate {
+func findNodeTemplate(instanceType string, csNodeTemplates map[string]gsc.NodeTemplate) *gsc.NodeTemplate {
 	for _, nt := range csNodeTemplates {
 		if nt.InstanceType == instanceType {
-			return &api.NodeTemplate{
-				InstanceType: instanceType,
-				Labels:       nt.Labels,
-				Capacity:     nt.Capacity,
-			}
+			return &nt
 		}
 	}
 	return nil
@@ -191,7 +222,7 @@ func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
 	return nodeCountPerPool
 }
 
-func computeRevisedResourcesForNodeTemplate(nodeTemplate *api.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
+func computeRevisedResourcesForNodeTemplate(nodeTemplate *gsc.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
 	kubeReservedCPU := resource.MustParse("80m")
 	kubeReservedMemory := resource.MustParse("1Gi")
 	kubeReservedResources := corev1.ResourceList{corev1.ResourceCPU: kubeReservedCPU, corev1.ResourceMemory: kubeReservedMemory}
@@ -201,15 +232,6 @@ func computeRevisedResourcesForNodeTemplate(nodeTemplate *api.NodeTemplate, sysC
 	nodeTemplate.Allocatable[corev1.ResourcePods] = *revisedPods
 	nodeTemplate.Capacity[corev1.ResourcePods] = *revisedPods
 }
-
-// computeNodeTemplateAllocatable will reduce the allocatable for a node by subtracting the total CPU and Memory that is consumed
-//// by all system components that are deployed in the kube-system namespace of the shoot cluster.
-//func computeNodeTemplateAllocatable(nodeTemplate *api.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
-//	kubeReservedCPU := resource.MustParse("80m")
-//	kubeReservedMemory := resource.MustParse("1Gi")
-//	kubeReservedResources := corev1.ResourceList{corev1.ResourceCPU: kubeReservedCPU, corev1.ResourceMemory: kubeReservedMemory}
-//	nodeTemplate.Allocatable = computeRevisedAllocatable(nodeTemplate.Capacity, sysComponentMaxResourceList, kubeReservedResources)
-//}
 
 func computeRevisedAllocatable(originalAllocatable corev1.ResourceList, systemComponentsResources corev1.ResourceList, kubeReservedResources corev1.ResourceList) corev1.ResourceList {
 	revisedNodeAllocatable := originalAllocatable.DeepCopy()

@@ -3,7 +3,7 @@ module unmarshall/scaling-recommender
 go 1.22.5
 
 require (
-	github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756
+	github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307
 	github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25
 	github.com/gardener/gardener v1.90.3
 	github.com/gardener/machine-controller-manager v0.52.0

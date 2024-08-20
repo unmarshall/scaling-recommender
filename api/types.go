@@ -1,6 +1,7 @@
 package api
 
 import (
+	gsc "github.com/elankath/gardener-scaling-common"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -49,13 +50,13 @@ type NodeInfo struct {
 	Capacity    corev1.ResourceList `json:"capacity"`
 }
 
-// NodeTemplate contains minimal information which helps in creating a node in a scale from zero scenario.
-type NodeTemplate struct {
-	InstanceType string              `json:"instanceType"`
-	Labels       map[string]string   `json:"labels"`
-	Capacity     corev1.ResourceList `json:"capacity"`
-	Allocatable  corev1.ResourceList `json:"allocatable"`
-}
+//// NodeTemplate contains minimal information which helps in creating a node in a scale from zero scenario.
+//type NodeTemplate struct {
+//	InstanceType string              `json:"instanceType"`
+//	Labels       map[string]string   `json:"labels"`
+//	Capacity     corev1.ResourceList `json:"capacity"`
+//	Allocatable  corev1.ResourceList `json:"allocatable"`
+//}
 
 // NodeReference captures sufficient information to identify a node type on which a pod is scheduled.
 type NodeReference struct {
@@ -72,7 +73,7 @@ type SimulationRequest struct {
 	PriorityClasses []schedulingv1.PriorityClass `json:"priorityClasses"`
 	Nodes           []NodeInfo                   `json:"nodes"`
 	// NodeTemplates is a map keyed on the instance Type.
-	NodeTemplates map[string]NodeTemplate `json:"nodeTemplates"`
+	NodeTemplates map[string]gsc.NodeTemplate `json:"nodeTemplates"`
 	// PodOrder is the order in which pods will be sorted and scheduled.
 	// If not provided, pods will be ordered in descending order of requested resources.
 	PodOrder *string `json:"podOrder,omitempty"`

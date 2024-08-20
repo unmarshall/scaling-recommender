@@ -12,7 +12,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"unmarshall/scaling-recommender/api"
@@ -30,7 +29,8 @@ func main() {
 	//	os.Exit(1)
 	//}
 	//scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenarios.json"))
-	scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "garden-i034796-g2-db-replay.json"))
+	//scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "garden-i034796-g2-db-replay.json"))
+	scenarios, err := util.ReadScenarios("/Users/i062009/go/src/github.com/elankath/poc/db/scenarios/garden-i034796-g2-db-replay.json")
 	dieOnError(err)
 	clusterSnapshots := lo.Map(scenarios, func(scenario scalehist.Scenario, index int) gsc.ClusterSnapshot {
 		return scenario.ClusterSnapshot

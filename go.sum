@@ -37,6 +37,8 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756 h1:zn2gGbEvjxUG7DpPFMo/0OlaL20XJ9MgUjIWP8u/2LA=
 github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756/go.mod h1:qpfpq3WPi97vGauiq3cyT5AbC8hfYSLotJiT0gUMszY=
+github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307 h1:gKwqtG/ArHsPu4zDgLtQKi/yxH1LHMLWWrBBlpb0nrg=
+github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307/go.mod h1:fnO2eLHZ5LmmSRXUPZVpfaGOSeTDbDsF8NuerLfoA2g=
 github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25 h1:C5HKGnKbKA3grK9aw208CvLxs1l2dO713uAADA7gvZs=
 github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25/go.mod h1:Jf5ebgRzdcqcORhVZLSpuamCiSlDmN7LQuIFzOGLrqE=
 github.com/emicklei/go-restful/v3 v3.11.0 h1:rAQeMHw1c7zTmncogyy8VvRZwtkmkZ4FxERmMY4rD+g=
