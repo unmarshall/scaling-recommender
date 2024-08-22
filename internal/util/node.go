@@ -3,13 +3,15 @@ package util
 import (
 	"context"
 	"fmt"
+	"strings"
+	"unmarshall/scaling-recommender/api"
+	"unmarshall/scaling-recommender/internal/common"
+
 	gsc "github.com/elankath/gardener-scaling-common"
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"unmarshall/scaling-recommender/api"
-	"unmarshall/scaling-recommender/internal/common"
 )
 
 const ExistingNodeInLiveClusterLabelKey = "app.kubernetes.io/existing-node"
@@ -93,6 +95,12 @@ func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string
 	}
 	nodeName := nodeNamePrefix + "-" + poolName + "-simrun-" + runRef.B
 	labels := nodeTemplate.Labels
+	delete(labels, "kubernetes.io/role/node")
+	for key := range labels {
+		if strings.HasPrefix(key, "kubernetes.io/cluster") {
+			delete(labels, key)
+		}
+	}
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[runRef.A] = runRef.B
 	labels[common.TopologyHostLabelKey] = nodeName

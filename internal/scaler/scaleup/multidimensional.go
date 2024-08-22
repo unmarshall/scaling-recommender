@@ -4,26 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	gsc "github.com/elankath/gardener-scaling-common"
-	v1 "k8s.io/api/scheduling/v1"
 	"log/slog"
 	"slices"
 	"strconv"
 	"sync"
 	"time"
 
+	gsc "github.com/elankath/gardener-scaling-common"
+	v1 "k8s.io/api/scheduling/v1"
+
+	"unmarshall/scaling-recommender/internal/common"
+	"unmarshall/scaling-recommender/internal/pricing"
+	"unmarshall/scaling-recommender/internal/util"
+
 	"github.com/samber/lo"
 	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"unmarshall/scaling-recommender/internal/common"
-	"unmarshall/scaling-recommender/internal/pricing"
-	"unmarshall/scaling-recommender/internal/util"
 
-	corev1 "k8s.io/api/core/v1"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler"
+
+	corev1 "k8s.io/api/core/v1"
 
 	kvclapi "github.com/unmarshall/kvcl/api"
 	kvcl "github.com/unmarshall/kvcl/pkg/control"
@@ -273,7 +276,8 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			return
 		}
 		slog.Info("Received Pod scheduling events", "scheduledPodNames", scheduledPodNames.UnsortedList(), "unSchedulePodNames", unSchedulePodNames.UnsortedList())
-		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, util.GetPodNames(unscheduledPods)...)
+		// simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, util.GetPodNames(unscheduledPods)...)
+		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames.UnsortedList()...)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
