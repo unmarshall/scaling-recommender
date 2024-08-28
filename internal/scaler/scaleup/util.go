@@ -2,12 +2,13 @@ package scaleup
 
 import (
 	"fmt"
-	"github.com/samber/lo"
-	corev1 "k8s.io/api/core/v1"
 	"log/slog"
 	"strings"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler"
+
+	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func getWinningRunResult(results []*runResult) *runResult {
@@ -90,5 +91,5 @@ func fromOriginalResourceName(name, suffix string) string {
 }
 
 func toOriginalResourceName(simResName string) string {
-	return strings.Split(simResName, "-simrun-")[0]
+	return strings.Split(simResName, "-sr-")[0]
 }

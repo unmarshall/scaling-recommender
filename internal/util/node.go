@@ -93,7 +93,7 @@ func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string
 	if err != nil {
 		return nil, err
 	}
-	nodeName := nodeNamePrefix + "-" + poolName + "-simrun-" + runRef.B
+	nodeName := nodeNamePrefix + "-" + poolName + "-sr-" + runRef.B
 	labels := nodeTemplate.Labels
 	delete(labels, "kubernetes.io/role/node")
 	for key := range labels {

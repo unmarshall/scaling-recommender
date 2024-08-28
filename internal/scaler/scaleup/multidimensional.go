@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"unmarshall/scaling-recommender/api"
@@ -34,7 +34,7 @@ import (
 
 const (
 	simRunKey          = "app.kubernetes.io/simulation-run"
-	resourceNameFormat = "%s-simrun-%s"
+	resourceNameFormat = "%s-sr-%s"
 )
 
 type recommender struct {
@@ -154,6 +154,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 }
 
 func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) error {
+
 	pods := util.ConstructPodsFromPodInfos(simReq.Pods, util.NilOr(simReq.PodOrder, common.SortDescending))
 	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes)
 	if err != nil {
@@ -163,7 +164,10 @@ func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) er
 	r.state.originalUnscheduledPods = lo.SliceToMap[*corev1.Pod, string, *corev1.Pod](r.state.unscheduledPods, func(pod *corev1.Pod) (string, *corev1.Pod) {
 		return pod.Name, pod
 	})
-	r.state.eligibleNodePools = lo.SliceToMap(simReq.NodePools, func(np api.NodePool) (string, api.NodePool) {
+	filteredNodePools := lo.Filter(simReq.NodePools, func(np api.NodePool, _ int) bool {
+		return np.Current < np.Max
+	})
+	r.state.eligibleNodePools = lo.SliceToMap(filteredNodePools, func(np api.NodePool) (string, api.NodePool) {
 		return np.Name, np
 	})
 	r.state.existingNodes = nodes
@@ -213,7 +217,8 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
-		runRef := lo.T2(simRunKey, nodePool.Name+"-"+strconv.Itoa(runNum))
+		// runRef := lo.T2(simRunKey, nodePool.Name+"-"+strconv.Itoa(runNum))
+		runRef := lo.T2(simRunKey, rand.String(4))
 		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
 	wg.Wait()
