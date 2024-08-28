@@ -233,13 +233,13 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 	//defer func() {
 	//	r.logger.Info("Simulation run completed", "runRef", runRef.B, "nodePool", nodePool.Name, "duration", time.Since(simRunStartTime).Seconds())
 	//}()
-	defer func() {
-		if err := r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
-			// In the productive code, there will not be any real KAPI and ETCD. Fake API server will never return an error as everything will be in memory.
-			// For now, we are only logging this error as in the POC code since the caller of recommender will re-initialize the virtual cluster.
-			r.logger.Error("Error cleaning up simulation run", "runRef", runRef.B, "err", err)
-		}
-	}()
+	//defer func() {
+	//	if err := r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
+	//		// In the productive code, there will not be any real KAPI and ETCD. Fake API server will never return an error as everything will be in memory.
+	//		// For now, we are only logging this error as in the POC code since the caller of recommender will re-initialize the virtual cluster.
+	//		r.logger.Error("Error cleaning up simulation run", "runRef", runRef.B, "err", err)
+	//	}
+	//}()
 	var (
 		node *corev1.Node
 		err  error
@@ -292,6 +292,12 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 		ns := r.scorer.Compute(node, simRunCandidatePods)
 		simRunResult := r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, simRunCandidatePods)
 		simRunLogs = append(simRunLogs, fmt.Sprintf("Simulation run result for [nodePool: %s, runRef: %s]: {score: %f, unscheduledPods: %v}\n", nodePool.Name, runRef.B, simRunResult.nodeScore, util.GetPodNames(simRunResult.unscheduledPods)))
+		simRunLogs = append(simRunLogs, fmt.Sprintf("Cleaning up simulation run for [nodePool: %s, runRef: %s]...\n", nodePool.Name, runRef.B))
+		if err = r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
+			// In the productive code, there will not be any real KAPI and ETCD. Fake API server will never return an error as everything will be in memory.
+			// For now, we are only logging this error as in the POC code since the caller of recommender will re-initialize the virtual cluster.
+			r.logger.Error("Error cleaning up simulation run", "runRef", runRef.B, "err", err)
+		}
 		simRunResult.logs = simRunLogs
 		resultCh <- simRunResult
 	}
@@ -299,7 +305,6 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 
 func (r *recommender) cleanUpNodePoolSimRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
 	labels := util.AsMap(runRef)
-	slog.Info("Cleaning up simulation run", "runRef", runRef.B)
 	var errs error
 	errs = errors.Join(errs, r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, labels))
 	errs = errors.Join(errs, r.nc.DeleteNodesMatchingLabels(ctx, labels))
