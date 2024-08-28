@@ -46,7 +46,6 @@ type recommender struct {
 	scorer        scaler.Scorer
 	state         simulationState
 	nodeTemplates map[string]gsc.NodeTemplate
-	baseLogger    *slog.Logger
 	logger        *slog.Logger
 }
 
@@ -56,10 +55,11 @@ type runResult struct {
 	zone            string
 	instanceType    string
 	nodeScore       float64
-	unscheduledPods []corev1.Pod
+	unscheduledPods []*corev1.Pod
 	nodeToPods      map[string][]types.NamespacedName
 	nodeCapacity    corev1.ResourceList
 	err             error
+	logs            []string
 }
 
 func errorRunResult(err error) *runResult {
@@ -103,11 +103,11 @@ func (s *simulationState) getUnscheduledPodObjectKeys() []client.ObjectKey {
 
 func NewRecommender(vcp kvclapi.ControlPlane, baseLogger *slog.Logger) scaler.Recommender {
 	return &recommender{
-		nc:         vcp.NodeControl(),
-		pc:         vcp.PodControl(),
-		ec:         vcp.EventControl(),
-		client:     vcp.Client(),
-		baseLogger: baseLogger,
+		nc:     vcp.NodeControl(),
+		pc:     vcp.PodControl(),
+		ec:     vcp.EventControl(),
+		client: vcp.Client(),
+		logger: baseLogger,
 	}
 }
 
@@ -117,7 +117,6 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 		runNumber       int
 	)
 	r.scorer = scorer
-	r.logger = r.baseLogger.With("id", simReq.ID)
 	r.nodeTemplates = simReq.NodeTemplates
 	if err := r.initializeSimulationState(simReq); err != nil {
 		return scaler.ErrorResult(err)
@@ -195,6 +194,7 @@ func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult 
 	// label, taint, result chan, error chan, close chan
 	var errs error
 	for result := range resultCh {
+		slog.Info(fmt.Sprintf("%v\n", result.logs))
 		if result.err != nil {
 			errs = errors.Join(errs, result.err)
 		} else {
@@ -226,11 +226,13 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 }
 
 func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.WaitGroup, nodePool api.NodePool, resultCh chan *runResult, runRef lo.Tuple2[string, string]) {
-	simRunStartTime := time.Now()
+	var simRunLogs []string
+	simRunLogs = append(simRunLogs, fmt.Sprintf("Starting simulation run for nodePool: %s, runRef: %s...\n", nodePool.Name, runRef.B))
+	//simRunStartTime := time.Now()
 	defer wg.Done()
-	defer func() {
-		r.logger.Info("Simulation run completed", "runRef", runRef.B, "nodePool", nodePool.Name, "duration", time.Since(simRunStartTime).Seconds())
-	}()
+	//defer func() {
+	//	r.logger.Info("Simulation run completed", "runRef", runRef.B, "nodePool", nodePool.Name, "duration", time.Since(simRunStartTime).Seconds())
+	//}()
 	defer func() {
 		if err := r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
 			// In the productive code, there will not be any real KAPI and ETCD. Fake API server will never return an error as everything will be in memory.
@@ -280,15 +282,18 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			resultCh <- errorRunResult(err)
 			return
 		}
-		slog.Info("Received Pod scheduling events", "scheduledPodNames", scheduledPodNames.UnsortedList(), "unSchedulePodNames", unSchedulePodNames.UnsortedList())
-		// simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, util.GetPodNames(unscheduledPods)...)
+		simRunLogs = append(simRunLogs, fmt.Sprintf("Received Pod scheduling events for [nodePool: %s, runRef: %s]: scheduledPodNames: %v, unSchedulePodNames: %v\n", nodePool.Name, runRef.B, scheduledPodNames.UnsortedList(), unSchedulePodNames.UnsortedList()))
+		//slog.Info("Received Pod scheduling events", "scheduledPodNames", "nodePool", nodePool.Name, "runRef", runRef.B, scheduledPodNames.UnsortedList(), "unSchedulePodNames", unSchedulePodNames.UnsortedList())
 		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames.UnsortedList()...)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}
 		ns := r.scorer.Compute(node, simRunCandidatePods)
-		resultCh <- r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, simRunCandidatePods)
+		simRunResult := r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, simRunCandidatePods)
+		simRunLogs = append(simRunLogs, fmt.Sprintf("Simulation run result for [nodePool: %s, runRef: %s]: {score: %f, unscheduledPods: %v}\n", nodePool.Name, runRef.B, simRunResult.nodeScore, util.GetPodNames(simRunResult.unscheduledPods)))
+		simRunResult.logs = simRunLogs
+		resultCh <- simRunResult
 	}
 }
 
@@ -401,11 +406,11 @@ func (r *recommender) computeRunResult(nodePoolName, instanceType, zone string, 
 	if nodeScore == 0.0 {
 		return &runResult{}
 	}
-	unscheduledPods := make([]corev1.Pod, 0, len(pods))
+	unscheduledPods := make([]*corev1.Pod, 0, len(pods))
 	nodeToPods := make(map[string][]types.NamespacedName)
 	for _, pod := range pods {
 		if pod.Spec.NodeName == "" {
-			unscheduledPods = append(unscheduledPods, pod)
+			unscheduledPods = append(unscheduledPods, &pod)
 		} else {
 			nodeToPods[pod.Spec.NodeName] = append(nodeToPods[pod.Spec.NodeName], client.ObjectKeyFromObject(&pod))
 		}
