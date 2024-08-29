@@ -35,8 +35,6 @@ github.com/distribution/reference v0.5.0 h1:/FUIFXtfc/x2gpa5/VGfiGLuOIdYa1t65IKK
 github.com/distribution/reference v0.5.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756 h1:zn2gGbEvjxUG7DpPFMo/0OlaL20XJ9MgUjIWP8u/2LA=
-github.com/elankath/gardener-scaling-common v0.0.0-20240726101052-50c6c5d3e756/go.mod h1:qpfpq3WPi97vGauiq3cyT5AbC8hfYSLotJiT0gUMszY=
 github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307 h1:gKwqtG/ArHsPu4zDgLtQKi/yxH1LHMLWWrBBlpb0nrg=
 github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307/go.mod h1:fnO2eLHZ5LmmSRXUPZVpfaGOSeTDbDsF8NuerLfoA2g=
 github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25 h1:C5HKGnKbKA3grK9aw208CvLxs1l2dO713uAADA7gvZs=
@@ -192,8 +190,10 @@ github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsT
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 h1:6fotK7otjonDflCTK0BCfls4SPy3NcCVb5dqqmbRknE=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75/go.mod h1:KO6IkyS8Y3j8OdNO85qEYBsRPuteD+YciPomcXdrMnk=
-github.com/unmarshall/kvcl v0.0.0-20240806085501-30fa579fe03d h1:M5Iqly8LJa8dJRohA+IZaDzf6Loq80xloAd+JQaU3eQ=
-github.com/unmarshall/kvcl v0.0.0-20240806085501-30fa579fe03d/go.mod h1:d6PooMrMUXCkuOSGJSxxc1vdTrazir+uxZM3n6OxPmU=
+github.com/unmarshall/kvcl v0.0.0-20240823110145-604eed995b78 h1:A7KnHTqY0nIAkk8heHOJyN7rfVKB+idcAKNoTstFsrQ=
+github.com/unmarshall/kvcl v0.0.0-20240823110145-604eed995b78/go.mod h1:d6PooMrMUXCkuOSGJSxxc1vdTrazir+uxZM3n6OxPmU=
+github.com/unmarshall/kvcl v0.0.0-20240829081326-6081f1c0b3ea h1:18ehsx11CD4V8VbaePgEPdjCp2Tl3PMWsp4omvIohhM=
+github.com/unmarshall/kvcl v0.0.0-20240829081326-6081f1c0b3ea/go.mod h1:d6PooMrMUXCkuOSGJSxxc1vdTrazir+uxZM3n6OxPmU=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 h1:eY9dn8+vbi4tKz5Qo6v2eYzo7kUS51QINcR5jNpbZS8=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

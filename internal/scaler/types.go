@@ -44,7 +44,7 @@ type ScorerFactory interface {
 }
 
 type Scorer interface {
-	Compute(scaledNode *corev1.Node, candidatePods []corev1.Pod) float64
+	Compute(scaledNode *corev1.Node, candidatePods []*corev1.Pod) float64
 }
 
 type LogWriterFlusher interface {

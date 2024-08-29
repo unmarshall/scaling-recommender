@@ -9,7 +9,7 @@ require (
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/samber/lo v1.46.0
-	github.com/unmarshall/kvcl v0.0.0-20240806085501-30fa579fe03d
+	github.com/unmarshall/kvcl v0.0.0-20240829081326-6081f1c0b3ea
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.30.3

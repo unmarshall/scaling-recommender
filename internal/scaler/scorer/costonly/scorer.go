@@ -18,7 +18,7 @@ func NewScorer(pa pricing.InstancePricingAccess) scaler.Scorer {
 	}
 }
 
-func (s *_scorer) Compute(scaledNode *corev1.Node, scheduledPods []corev1.Pod) float64 {
+func (s *_scorer) Compute(scaledNode *corev1.Node, scheduledPods []*corev1.Pod) float64 {
 	instanceCost := s.pa.GetOnDemandPricing(util.GetInstanceType(scaledNode.Labels))
 	totalResourceUnitsScheduled := 0.0
 	for _, pod := range scheduledPods {

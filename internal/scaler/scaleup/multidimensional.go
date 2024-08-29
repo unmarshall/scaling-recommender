@@ -217,7 +217,6 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
-		// runRef := lo.T2(simRunKey, nodePool.Name+"-"+strconv.Itoa(runNum))
 		runRef := lo.T2(simRunKey, rand.String(4))
 		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
@@ -228,18 +227,7 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.WaitGroup, nodePool api.NodePool, resultCh chan *runResult, runRef lo.Tuple2[string, string]) {
 	var simRunLogs []string
 	simRunLogs = append(simRunLogs, fmt.Sprintf("Starting simulation run for nodePool: %s, runRef: %s...\n", nodePool.Name, runRef.B))
-	//simRunStartTime := time.Now()
 	defer wg.Done()
-	//defer func() {
-	//	r.logger.Info("Simulation run completed", "runRef", runRef.B, "nodePool", nodePool.Name, "duration", time.Since(simRunStartTime).Seconds())
-	//}()
-	//defer func() {
-	//	if err := r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
-	//		// In the productive code, there will not be any real KAPI and ETCD. Fake API server will never return an error as everything will be in memory.
-	//		// For now, we are only logging this error as in the POC code since the caller of recommender will re-initialize the virtual cluster.
-	//		r.logger.Error("Error cleaning up simulation run", "runRef", runRef.B, "err", err)
-	//	}
-	//}()
 	var (
 		node *corev1.Node
 		err  error
@@ -283,14 +271,13 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			return
 		}
 		simRunLogs = append(simRunLogs, fmt.Sprintf("Received Pod scheduling events for [nodePool: %s, runRef: %s]: scheduledPodNames: %v, unSchedulePodNames: %v\n", nodePool.Name, runRef.B, scheduledPodNames.UnsortedList(), unSchedulePodNames.UnsortedList()))
-		//slog.Info("Received Pod scheduling events", "scheduledPodNames", "nodePool", nodePool.Name, "runRef", runRef.B, scheduledPodNames.UnsortedList(), "unSchedulePodNames", unSchedulePodNames.UnsortedList())
 		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames.UnsortedList()...)
 		if err != nil {
 			resultCh <- errorRunResult(err)
 			return
 		}
 		ns := r.scorer.Compute(node, simRunCandidatePods)
-		simRunResult := r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, simRunCandidatePods)
+		simRunResult := r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, getUpdatedPods(unscheduledPods, simRunCandidatePods))
 		simRunLogs = append(simRunLogs, fmt.Sprintf("Simulation run result for [nodePool: %s, runRef: %s]: {score: %f, unscheduledPods: %v}\n", nodePool.Name, runRef.B, simRunResult.nodeScore, util.GetPodNames(simRunResult.unscheduledPods)))
 		simRunLogs = append(simRunLogs, fmt.Sprintf("Cleaning up simulation run for [nodePool: %s, runRef: %s]...\n", nodePool.Name, runRef.B))
 		if err = r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
@@ -303,13 +290,26 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 	}
 }
 
+func getUpdatedPods(original []*corev1.Pod, scheduled []*corev1.Pod) []*corev1.Pod {
+	updatedPods := make([]*corev1.Pod, 0, len(original))
+	for _, op := range original {
+		matchingScheduledPod, found := lo.Find(scheduled, func(p *corev1.Pod) bool {
+			return p.Name == op.Name
+		})
+		if found {
+			updatedPods = append(updatedPods, matchingScheduledPod)
+		} else {
+			updatedPods = append(updatedPods, op)
+		}
+	}
+	return updatedPods
+}
+
 func (r *recommender) cleanUpNodePoolSimRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
 	labels := util.AsMap(runRef)
 	var errs error
 	errs = errors.Join(errs, r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, labels))
 	errs = errors.Join(errs, r.nc.DeleteNodesMatchingLabels(ctx, labels))
-	schedPodLabels := util.AsMap(createSimRunRefForSchedPods(runRef))
-	errs = errors.Join(errs, r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, schedPodLabels))
 	return errs
 }
 
@@ -341,8 +341,7 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		if podCopy.Labels == nil {
 			podCopy.Labels = make(map[string]string)
 		}
-		schedSimRunRef := createSimRunRefForSchedPods(runRef)
-		podCopy.Labels[schedSimRunRef.A] = schedSimRunRef.B
+		podCopy.Labels[runRef.A] = runRef.B
 		podCopy.ObjectMeta.UID = ""
 		podCopy.ObjectMeta.ResourceVersion = ""
 		podCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
@@ -364,10 +363,6 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		return err
 	}
 	return nil
-}
-
-func createSimRunRefForSchedPods(runRef lo.Tuple2[string, string]) lo.Tuple2[string, string] {
-	return lo.Tuple2[string, string]{A: runRef.A, B: runRef.B + "-sched"}
 }
 
 func (r *recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, runRef lo.Tuple2[string, string]) error {
@@ -407,17 +402,19 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 	return unscheduledPods, r.pc.CreatePods(ctx, unscheduledPods...)
 }
 
-func (r *recommender) computeRunResult(nodePoolName, instanceType, zone string, node *corev1.Node, nodeScore float64, pods []corev1.Pod) *runResult {
+func (r *recommender) computeRunResult(nodePoolName, instanceType, zone string, node *corev1.Node, nodeScore float64, pods []*corev1.Pod) *runResult {
 	if nodeScore == 0.0 {
-		return &runResult{}
+		return &runResult{
+			unscheduledPods: pods,
+		}
 	}
 	unscheduledPods := make([]*corev1.Pod, 0, len(pods))
 	nodeToPods := make(map[string][]types.NamespacedName)
 	for _, pod := range pods {
 		if pod.Spec.NodeName == "" {
-			unscheduledPods = append(unscheduledPods, &pod)
+			unscheduledPods = append(unscheduledPods, pod)
 		} else {
-			nodeToPods[pod.Spec.NodeName] = append(nodeToPods[pod.Spec.NodeName], client.ObjectKeyFromObject(&pod))
+			nodeToPods[pod.Spec.NodeName] = append(nodeToPods[pod.Spec.NodeName], client.ObjectKeyFromObject(pod))
 		}
 	}
 	return &runResult{
@@ -455,7 +452,7 @@ func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context,
 		return err
 	}
 	for _, pod := range scheduledPods {
-		r.state.scheduledPods = append(r.state.scheduledPods, &pod)
+		r.state.scheduledPods = append(r.state.scheduledPods, pod)
 		r.state.unscheduledPods = slices.DeleteFunc(r.state.unscheduledPods, func(p *corev1.Pod) bool {
 			return p.Name == pod.Name
 		})
