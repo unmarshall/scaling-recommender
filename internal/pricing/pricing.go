@@ -1,13 +1,18 @@
 package pricing
 
 import (
+	"embed"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 
 	"k8s.io/apimachinery/pkg/util/json"
 )
+
+// assets is a `embed.FS` to embed all files in the `assets` directory
+//
+//go:embed assets/*.json
+var assets embed.FS
 
 type InstancePricingAccess interface {
 	Get3YearReservedPricing(instanceType string) float64
@@ -48,9 +53,9 @@ func (a *access) GetOnDemandPricing(instanceType string) float64 {
 func (a *access) initializeProviderPricing() (err error) {
 	switch a.provider {
 	case "aws":
-		a.pricingMap, err = loadInstancePricing(filepath.Join("internal", "pricing", "assets", "aws_pricing_eu-west-1.json"))
+		a.pricingMap, err = loadInstancePricing(filepath.Join("assets", "aws_pricing_eu-west-1.json"))
 	case "gcp":
-		a.pricingMap, err = loadInstancePricing(filepath.Join("internal", "pricing", "assets", "gcp_pricing_eu-west1.json"))
+		a.pricingMap, err = loadInstancePricing(filepath.Join("assets", "gcp_pricing_eu-west1.json"))
 	default:
 		err = fmt.Errorf("provider not supported: %s", a.provider)
 	}
@@ -59,7 +64,7 @@ func (a *access) initializeProviderPricing() (err error) {
 
 func loadInstancePricing(pricingJsonPath string) (map[string]InstancePricing, error) {
 	var allPricing AllInstancePricing
-	content, err := os.ReadFile(pricingJsonPath)
+	content, err := assets.ReadFile(pricingJsonPath)
 	if err != nil {
 		return nil, err
 	}
