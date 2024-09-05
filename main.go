@@ -46,6 +46,7 @@ func startExecutorEngine(ctx context.Context, appConfig api.AppConfig, logger *s
 	go func() {
 		defer engine.Shutdown()
 		if err := engine.Start(ctx); err != nil {
+			logger.Error("failed to start executor-engine server", "err", err)
 			app.ExitAppWithError(1, fmt.Errorf("error starting executor engine: %w", err))
 		}
 	}()
