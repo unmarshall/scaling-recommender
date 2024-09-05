@@ -225,68 +225,74 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 }
 
 func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.WaitGroup, nodePool api.NodePool, resultCh chan *runResult, runRef lo.Tuple2[string, string]) {
-	var simRunLogs []string
-	simRunLogs = append(simRunLogs, fmt.Sprintf("Starting simulation run for nodePool: %s, runRef: %s...\n", nodePool.Name, runRef.B))
 	defer wg.Done()
-	var (
-		node *corev1.Node
-		err  error
-	)
 	// create a copy of all nodes and scheduled pods only
-	if err = r.setupSimulationRun(ctx, runRef); err != nil {
+	if err := r.setupSimulationRun(ctx, runRef); err != nil {
 		resultCh <- errorRunResult(err)
 		return
 	}
 	for _, zone := range nodePool.Zones.UnsortedList() {
-		if node != nil {
-			if err = r.resetNodePoolSimRun(ctx, node.Name, runRef); err != nil {
-				resultCh <- errorRunResult(err)
-				return
-			}
-		}
-		foundNodeTemplate, ok := r.nodeTemplates[nodePool.InstanceType]
-		if !ok {
-			resultCh <- errorRunResult(fmt.Errorf("node template not found for instance type %s", nodePool.InstanceType))
+		runResult := r.runSimForZone(ctx, runRef, nodePool, zone)
+		resultCh <- runResult
+		if runResult.err != nil {
 			return
 		}
-		node, err = util.ConstructNodeForSimRun(foundNodeTemplate, nodePool.Name, zone, runRef)
-		if err != nil {
-			resultCh <- errorRunResult(err)
-			return
-		}
-		if err = kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
-			resultCh <- errorRunResult(err)
-			return
-		}
+	}
+}
 
-		deployTime := time.Now()
-		unscheduledPods, err := r.createAndDeployUnscheduledPods(ctx, runRef)
-		if err != nil {
-			resultCh <- errorRunResult(err)
-			return
+func (r *recommender) runSimForZone(ctx context.Context, runRef lo.Tuple2[string, string], nodePool api.NodePool, zone string) *runResult {
+	var (
+		nodeName            *string
+		unscheduledPodNames []string
+		simRunLogs          []string
+	)
+	simRunLogs = append(simRunLogs, fmt.Sprintf("Starting simulation run for nodePool: %s, zone: %s, runRef: %s...\n", nodePool.Name, zone, runRef.B))
+	defer r.cleanUpSimRunForZone(ctx, nodePool.Name, runRef.B, nodeName, unscheduledPodNames)
+	foundNodeTemplate, ok := r.nodeTemplates[nodePool.InstanceType]
+	if !ok {
+		return errorRunResult(fmt.Errorf("node template not found for instance type %s", nodePool.InstanceType))
+	}
+	node, err := util.ConstructNodeForSimRun(foundNodeTemplate, nodePool.Name, zone, runRef)
+	if err != nil {
+		return errorRunResult(err)
+	}
+	nodeName = &node.Name
+	if err = kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
+		return errorRunResult(err)
+	}
+
+	deployTime := time.Now()
+	unscheduledPods, err := r.createAndDeployUnscheduledPods(ctx, runRef)
+	if err != nil {
+		return errorRunResult(err)
+	}
+	unscheduledPodNames = util.GetPodNames(unscheduledPods)
+	scheduledPodNames, unSchedulePodNames, err := r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second)
+	if err != nil {
+		return errorRunResult(err)
+	}
+	simRunLogs = append(simRunLogs, fmt.Sprintf("Received Pod scheduling events for [nodePool: %s, runRef: %s]: scheduledPodNames: %v, unSchedulePodNames: %v\n", nodePool.Name, runRef.B, scheduledPodNames.UnsortedList(), unSchedulePodNames.UnsortedList()))
+	simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames.UnsortedList()...)
+	if err != nil {
+		return errorRunResult(err)
+	}
+	ns := r.scorer.Compute(node, simRunCandidatePods)
+	simRunResult := r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, getUpdatedPods(unscheduledPods, simRunCandidatePods))
+	simRunLogs = append(simRunLogs, fmt.Sprintf("Simulation run result for [nodePool: %s, runRef: %s]: {score: %f, unscheduledPods: %v}\n", nodePool.Name, runRef.B, simRunResult.nodeScore, util.GetPodNames(simRunResult.unscheduledPods)))
+	simRunResult.logs = simRunLogs
+	return simRunResult
+}
+
+func (r *recommender) cleanUpSimRunForZone(ctx context.Context, nodePoolName, runRefVal string, nodeName *string, podNames []string) {
+	if nodeName != nil {
+		if err := r.nc.DeleteNodes(ctx, *nodeName); err != nil {
+			r.logger.Error("Failed to delete node", "nodePoolName", nodePoolName, "runRef", runRefVal, "nodeName", *nodeName, "error", err)
 		}
-		scheduledPodNames, unSchedulePodNames, err := r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second)
-		if err != nil {
-			resultCh <- errorRunResult(err)
-			return
+	}
+	if len(podNames) > 0 {
+		if err := r.pc.DeletePodsMatchingNames(ctx, common.DefaultNamespace, podNames...); err != nil {
+			r.logger.Error("Failed to delete pods", "nodePoolName", nodePoolName, "runRef", runRefVal, "podNames", podNames, "error", err)
 		}
-		simRunLogs = append(simRunLogs, fmt.Sprintf("Received Pod scheduling events for [nodePool: %s, runRef: %s]: scheduledPodNames: %v, unSchedulePodNames: %v\n", nodePool.Name, runRef.B, scheduledPodNames.UnsortedList(), unSchedulePodNames.UnsortedList()))
-		simRunCandidatePods, err := r.pc.GetPodsMatchingPodNames(ctx, common.DefaultNamespace, scheduledPodNames.UnsortedList()...)
-		if err != nil {
-			resultCh <- errorRunResult(err)
-			return
-		}
-		ns := r.scorer.Compute(node, simRunCandidatePods)
-		simRunResult := r.computeRunResult(nodePool.Name, nodePool.InstanceType, zone, node, ns, getUpdatedPods(unscheduledPods, simRunCandidatePods))
-		simRunLogs = append(simRunLogs, fmt.Sprintf("Simulation run result for [nodePool: %s, runRef: %s]: {score: %f, unscheduledPods: %v}\n", nodePool.Name, runRef.B, simRunResult.nodeScore, util.GetPodNames(simRunResult.unscheduledPods)))
-		simRunLogs = append(simRunLogs, fmt.Sprintf("Cleaning up simulation run for [nodePool: %s, runRef: %s]...\n", nodePool.Name, runRef.B))
-		if err = r.cleanUpNodePoolSimRun(ctx, runRef); err != nil {
-			// In the productive code, there will not be any real KAPI and ETCD. Fake API server will never return an error as everything will be in memory.
-			// For now, we are only logging this error as in the POC code since the caller of recommender will re-initialize the virtual cluster.
-			r.logger.Error("Error cleaning up simulation run", "runRef", runRef.B, "err", err)
-		}
-		simRunResult.logs = simRunLogs
-		resultCh <- simRunResult
 	}
 }
 
