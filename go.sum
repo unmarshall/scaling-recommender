@@ -35,10 +35,10 @@ github.com/distribution/reference v0.5.0 h1:/FUIFXtfc/x2gpa5/VGfiGLuOIdYa1t65IKK
 github.com/distribution/reference v0.5.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307 h1:gKwqtG/ArHsPu4zDgLtQKi/yxH1LHMLWWrBBlpb0nrg=
-github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307/go.mod h1:fnO2eLHZ5LmmSRXUPZVpfaGOSeTDbDsF8NuerLfoA2g=
-github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25 h1:C5HKGnKbKA3grK9aw208CvLxs1l2dO713uAADA7gvZs=
-github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25/go.mod h1:Jf5ebgRzdcqcORhVZLSpuamCiSlDmN7LQuIFzOGLrqE=
+github.com/elankath/gardener-scaling-common v0.0.0-20240905073535-8f8821aeedaa h1:4J280Kdoz7FIr2AAlBLN/TIlsSJYZ+xk8NyQ2JurXNw=
+github.com/elankath/gardener-scaling-common v0.0.0-20240905073535-8f8821aeedaa/go.mod h1:fnO2eLHZ5LmmSRXUPZVpfaGOSeTDbDsF8NuerLfoA2g=
+github.com/elankath/gardener-scaling-history v0.0.0-20240905155232-8e6a8eab46ff h1:ufFyKdkLz2h0KVrBka6LI1Khda4B3ey1nrfSHuEbfww=
+github.com/elankath/gardener-scaling-history v0.0.0-20240905155232-8e6a8eab46ff/go.mod h1:8tlH8qXpxkkpPs9Z4bEwkQDkhjjRPFGKnth+zK5Lg4o=
 github.com/emicklei/go-restful/v3 v3.11.0 h1:rAQeMHw1c7zTmncogyy8VvRZwtkmkZ4FxERmMY4rD+g=
 github.com/emicklei/go-restful/v3 v3.11.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/envoyproxy/protoc-gen-validate v1.0.2 h1:QkIBuU5k+x7/QXPvPPnWXWlCdaBFApVqftFV6k087DA=
@@ -259,8 +259,8 @@ golang.org/x/oauth2 v0.15.0/go.mod h1:q48ptWNTY5XWf+JNten23lcvHpLJ0ZSxF5ttTHKVCA
 golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
-golang.org/x/sync v0.7.0 h1:YsImfSBoP9QPYL0xyKJPq0gcaJdG3rInoqxTWbfQu9M=
-golang.org/x/sync v0.7.0/go.mod h1:Czt+wKu1gCyEFDUtn0jG5QVvpJ6rzVqr5aXyt9drQfk=
+golang.org/x/sync v0.8.0 h1:3NFvSEYkUoMifnESzZl15y791HH1qU2xm6eCJU5ZPXQ=
+golang.org/x/sync v0.8.0/go.mod h1:Czt+wKu1gCyEFDUtn0jG5QVvpJ6rzVqr5aXyt9drQfk=
 golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
@@ -337,8 +337,8 @@ k8s.io/csi-translation-lib v0.30.3 h1:wBaPWnOi14/vANRIrp8pmbdx/Pgz2QRcroH7wkodez
 k8s.io/csi-translation-lib v0.30.3/go.mod h1:3AizNZbDttVDH1RO0x1yGEQP74e9Xbfb60IBP1oWO1o=
 k8s.io/dynamic-resource-allocation v0.30.3 h1:49aLgEhknKF8gPVhsquJ3ylOnfC8ddxnqVP6y3T+hkM=
 k8s.io/dynamic-resource-allocation v0.30.3/go.mod h1:Dj7OzA3pYT/OfN9PvuYt9CH5e5KcjKBRAik8XeG0nB8=
-k8s.io/klog/v2 v2.120.1 h1:QXU6cPEOIslTGvZaXvFWiP9VKyeet3sawzTOvdXb4Vw=
-k8s.io/klog/v2 v2.120.1/go.mod h1:3Jpz1GvMt720eyJH1ckRHK1EDfpxISzJ7I9OYgaDtPE=
+k8s.io/klog/v2 v2.130.1 h1:n9Xl7H1Xvksem4KFG4PYbdQCQxqc/tTUyrgXaOhHSzk=
+k8s.io/klog/v2 v2.130.1/go.mod h1:3Jpz1GvMt720eyJH1ckRHK1EDfpxISzJ7I9OYgaDtPE=
 k8s.io/kms v0.30.3 h1:NLg+oN45S2Y3U0WiLRzbS61AY/XrS5JBMZp531Z+Pho=
 k8s.io/kms v0.30.3/go.mod h1:GrMurD0qk3G4yNgGcsCEmepqf9KyyIrTXYR2lyUOJC4=
 k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 h1:BZqlfIlq5YbRMFko6/PM7FjZpUb45WallggurYhKGag=

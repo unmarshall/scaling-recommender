@@ -35,7 +35,7 @@ import (
 //	})
 //}
 
-func ReadScenarios(filePath string) ([]scalehist.Scenario, error) {
+func ReadScenario(filePath string) (*scalehist.Scenario, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -43,12 +43,13 @@ func ReadScenarios(filePath string) ([]scalehist.Scenario, error) {
 	defer func() {
 		_ = file.Close()
 	}()
-	analysis := &scalehist.ReplayReport{}
-	err = json.NewDecoder(file).Decode(analysis)
+	scenario := &scalehist.Scenario{}
+	err = json.NewDecoder(file).Decode(scenario)
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	return analysis.Scenarios, nil
+	return scenario, nil
 }
 
 //func mapToWorkerPools(nodeGrps []scalehist.NodeGroupInfo) []gsc.WorkerPoolInfo {

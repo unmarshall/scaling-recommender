@@ -155,7 +155,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) error {
 
 	pods := util.ConstructPodsFromPodInfos(simReq.Pods, util.NilOr(simReq.PodOrder, common.SortDescending))
-	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes)
+	nodes, err := util.ConstructNodesFromNodeInfos(simReq.Nodes, r.nodeTemplates)
 	if err != nil {
 		return err
 	}
@@ -218,16 +218,21 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
 		runRef := lo.T2(simRunKey, rand.String(4))
-		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
+		r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
 	wg.Wait()
 	close(resultCh)
 }
 
 func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.WaitGroup, nodePool api.NodePool, resultCh chan *runResult, runRef lo.Tuple2[string, string]) {
+	var (
+		scheduledPods []string
+		err           error
+	)
 	defer wg.Done()
+	defer r.cleanUpNodePoolSimRun(ctx, runRef, &scheduledPods)
 	// create a copy of all nodes and scheduled pods only
-	if err := r.setupSimulationRun(ctx, runRef); err != nil {
+	if scheduledPods, err = r.setupSimulationRun(ctx, runRef); err != nil {
 		resultCh <- errorRunResult(err)
 		return
 	}
@@ -242,12 +247,12 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 
 func (r *recommender) runSimForZone(ctx context.Context, runRef lo.Tuple2[string, string], nodePool api.NodePool, zone string) *runResult {
 	var (
-		nodeName            *string
+		nodeName            string
 		unscheduledPodNames []string
 		simRunLogs          []string
 	)
 	simRunLogs = append(simRunLogs, fmt.Sprintf("Starting simulation run for nodePool: %s, zone: %s, runRef: %s...\n", nodePool.Name, zone, runRef.B))
-	defer r.cleanUpSimRunForZone(ctx, nodePool.Name, runRef.B, nodeName, unscheduledPodNames)
+	defer r.cleanUpSimRunForZone(ctx, nodePool.Name, runRef.B, &nodeName, &unscheduledPodNames)
 	foundNodeTemplate, ok := r.nodeTemplates[nodePool.InstanceType]
 	if !ok {
 		return errorRunResult(fmt.Errorf("node template not found for instance type %s", nodePool.InstanceType))
@@ -256,16 +261,18 @@ func (r *recommender) runSimForZone(ctx context.Context, runRef lo.Tuple2[string
 	if err != nil {
 		return errorRunResult(err)
 	}
-	nodeName = &node.Name
+	nodeName = node.Name
 	if err = kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, node); err != nil {
 		return errorRunResult(err)
 	}
 
 	deployTime := time.Now()
+	//r.logger.Info("Deploying unscheduled pods", "nodePool name", nodePool.Name, "runRef", runRef)
 	unscheduledPods, err := r.createAndDeployUnscheduledPods(ctx, runRef)
 	if err != nil {
 		return errorRunResult(err)
 	}
+	//r.logger.Info("Deployed unscheduled pods", "nodePool name", nodePool.Name, "runRef", runRef)
 	unscheduledPodNames = util.GetPodNames(unscheduledPods)
 	scheduledPodNames, unSchedulePodNames, err := r.ec.GetPodSchedulingEvents(ctx, common.DefaultNamespace, deployTime, unscheduledPods, 10*time.Second)
 	if err != nil {
@@ -283,15 +290,19 @@ func (r *recommender) runSimForZone(ctx context.Context, runRef lo.Tuple2[string
 	return simRunResult
 }
 
-func (r *recommender) cleanUpSimRunForZone(ctx context.Context, nodePoolName, runRefVal string, nodeName *string, podNames []string) {
+func (r *recommender) cleanUpSimRunForZone(ctx context.Context, nodePoolName, runRefVal string, nodeName *string, podNames *[]string) {
+	r.logger.Info("cleaning up sim run", "nodePoolName", nodePoolName, "runRef", runRefVal)
 	if nodeName != nil {
+		//r.logger.Info("Deleting node", "nodePoolName", nodePoolName, "runRef", runRefVal, "nodeName", *nodeName)
 		if err := r.nc.DeleteNodes(ctx, *nodeName); err != nil {
 			r.logger.Error("Failed to delete node", "nodePoolName", nodePoolName, "runRef", runRefVal, "nodeName", *nodeName, "error", err)
 		}
 	}
-	if len(podNames) > 0 {
-		if err := r.pc.DeletePodsMatchingNames(ctx, common.DefaultNamespace, podNames...); err != nil {
-			r.logger.Error("Failed to delete pods", "nodePoolName", nodePoolName, "runRef", runRefVal, "podNames", podNames, "error", err)
+
+	if podNames != nil && len(*podNames) > 0 {
+		//r.logger.Info("Deleting pods", "nodePoolName", nodePoolName, "runRef", runRefVal, "podNames", *podNames)
+		if err := r.pc.DeletePodsMatchingNames(ctx, common.DefaultNamespace, *podNames...); err != nil {
+			r.logger.Error("Failed to delete pods", "nodePoolName", nodePoolName, "runRef", runRefVal, "podNames", *podNames, "error", err)
 		}
 	}
 }
@@ -311,15 +322,15 @@ func getUpdatedPods(original []*corev1.Pod, scheduled []*corev1.Pod) []*corev1.P
 	return updatedPods
 }
 
-func (r *recommender) cleanUpNodePoolSimRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
+func (r *recommender) cleanUpNodePoolSimRun(ctx context.Context, runRef lo.Tuple2[string, string], podNames *[]string) error {
 	labels := util.AsMap(runRef)
 	var errs error
-	errs = errors.Join(errs, r.pc.DeletePodsMatchingLabels(ctx, common.DefaultNamespace, labels))
+	errs = errors.Join(errs, r.pc.DeletePodsMatchingNames(ctx, common.DefaultNamespace, *podNames...))
 	errs = errors.Join(errs, r.nc.DeleteNodesMatchingLabels(ctx, labels))
 	return errs
 }
 
-func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[string, string]) error {
+func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[string, string]) ([]string, error) {
 	// create copy of all nodes (barring existing nodes)
 	clonedNodes := make([]*corev1.Node, 0, len(r.state.existingNodes))
 	for _, node := range r.state.existingNodes {
@@ -336,7 +347,7 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		clonedNodes = append(clonedNodes, nodeCopy)
 	}
 	if err := kvcl.CreateAndUntaintNode(ctx, r.nc, common.NotReadyTaintKey, clonedNodes...); err != nil {
-		return err
+		return nil, err
 	}
 
 	// create copy of all scheduled pods
@@ -366,9 +377,9 @@ func (r *recommender) setupSimulationRun(ctx context.Context, runRef lo.Tuple2[s
 		clonedScheduledPods = append(clonedScheduledPods, podCopy)
 	}
 	if err := r.pc.CreatePods(ctx, clonedScheduledPods...); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return util.GetPodNames(clonedScheduledPods), nil
 }
 
 func (r *recommender) resetNodePoolSimRun(ctx context.Context, nodeName string, runRef lo.Tuple2[string, string]) error {

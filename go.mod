@@ -3,8 +3,8 @@ module unmarshall/scaling-recommender
 go 1.22.5
 
 require (
-	github.com/elankath/gardener-scaling-common v0.0.0-20240820102141-cd99ee793307
-	github.com/elankath/gardener-scaling-history v0.0.0-20240725121333-a7d4bbe37f25
+	github.com/elankath/gardener-scaling-common v0.0.0-20240905073535-8f8821aeedaa
+	github.com/elankath/gardener-scaling-history v0.0.0-20240905155232-8e6a8eab46ff
 	github.com/gardener/gardener v1.90.3
 	github.com/gardener/machine-controller-manager v0.52.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -89,7 +89,7 @@ require (
 	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
@@ -111,7 +111,7 @@ require (
 	k8s.io/controller-manager v0.30.3 // indirect
 	k8s.io/csi-translation-lib v0.0.0 // indirect
 	k8s.io/dynamic-resource-allocation v0.0.0 // indirect
-	k8s.io/klog/v2 v2.120.1 // indirect
+	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kms v0.30.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/kube-scheduler v0.30.3 // indirect

@@ -65,9 +65,13 @@ func evaluateNodeFilters(node *corev1.Node, filters []common.NodeFilter) bool {
 	return true
 }
 
-func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) ([]*corev1.Node, error) {
+func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplates map[string]gsc.NodeTemplate) ([]*corev1.Node, error) {
 	nodes := make([]*corev1.Node, 0, len(nodeInfos))
 	for _, np := range nodeInfos {
+		nodeTemplate, ok := nodeTemplates[np.Labels[common.InstanceTypeLabelKey]]
+		if !ok {
+			return nil, fmt.Errorf("no template found for instance type %s", np.Labels[common.InstanceTypeLabelKey])
+		}
 		node := &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      np.Name,
@@ -78,7 +82,7 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo) ([]*corev1.Node, erro
 				Taints: np.Taints,
 			},
 			Status: corev1.NodeStatus{
-				Allocatable: np.Allocatable,
+				Allocatable: nodeTemplate.Allocatable,
 				Capacity:    np.Capacity,
 				Phase:       corev1.NodeRunning,
 			},

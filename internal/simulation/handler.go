@@ -65,6 +65,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	result := recommender.Run(r.Context(), h.engine.GetScorer(), simRequest)
 	if result.IsError() {
+		slog.Error("Error in running simulation", result.Err.Error())
 		web.ErrorResponse(w, http.StatusInternalServerError, result.Err.Error())
 		return
 	}
@@ -176,10 +177,10 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 	nodeCountPerPool := deriveNodeCountPerWorkerPool(cs.Nodes)
 	nodePools := make([]api.NodePool, 0, len(cs.WorkerPools))
 
-	maxResourceList, err := getMaxSystemComponentRequestsAcrossNodes(cs.Pods)
-	if err != nil {
-		return api.SimulationRequest{}, err
-	}
+	//maxResourceList, err := getMaxSystemComponentRequestsAcrossNodes(cs.Pods)
+	//if err != nil {
+	//	return api.SimulationRequest{}, err
+	//}
 	nodeTemplates := make(map[string]gsc.NodeTemplate, len(cs.WorkerPools))
 	for _, wp := range cs.WorkerPools {
 		count := nodeCountPerPool[wp.Name]
@@ -198,7 +199,7 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 			err = fmt.Errorf("createSimulationRequest cannot find node template for workerpool %q", wp.Name)
 			return
 		}
-		computeRevisedResourcesForNodeTemplate(nodeTemplate, maxResourceList)
+		//computeRevisedResourcesForNodeTemplate(nodeTemplate, maxResourceList)
 		nodeTemplates[wp.MachineType] = *nodeTemplate
 	}
 	simRequest.NodeTemplates = nodeTemplates
