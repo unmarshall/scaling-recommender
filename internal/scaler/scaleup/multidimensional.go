@@ -509,14 +509,14 @@ func (r *recommender) initializeVirtualCluster(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize virtual cluster with existing nodes: %w", err)
 		}
 	}
-	if r.state.scheduledPods != nil {
-		if err := r.pc.CreatePods(ctx, r.state.scheduledPods...); err != nil {
-			return fmt.Errorf("failed to initialize virtual cluster with scheduled pods: %w", err)
-		}
-	}
 	for _, pc := range r.state.priorityClasses {
 		if err := r.client.Create(ctx, &pc); err != nil {
 			return fmt.Errorf("failed to initialize virtual cluster with priority class: %w", err)
+		}
+	}
+	if r.state.scheduledPods != nil {
+		if err := r.pc.CreatePods(ctx, r.state.scheduledPods...); err != nil {
+			return fmt.Errorf("failed to initialize virtual cluster with scheduled pods: %w", err)
 		}
 	}
 	return nil

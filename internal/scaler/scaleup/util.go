@@ -87,6 +87,7 @@ func appendScaleUpRecommendation(recommendations []api.ScaleUpRecommendation, re
 }
 
 func fromOriginalResourceName(name, suffix string) string {
+	name = strings.TrimPrefix(name, "shoot--")
 	return fmt.Sprintf(resourceNameFormat, name, suffix)
 }
 
