@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/elankath/gardener-scaling-common"
-	"github.com/samber/lo"
+	gsc "github.com/elankath/gardener-scaling-common"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"log/slog"
 	"net/http"
@@ -147,7 +145,6 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 	for _, pc := range cs.PriorityClasses {
 		simRequest.PriorityClasses = append(simRequest.PriorityClasses, pc.PriorityClass)
 	}
-	systemComponentResourcesPerNode := collectKubeSystemPodsResourceRequestsByNode(cs.Pods)
 
 	for _, p := range cs.Pods {
 		if p.Namespace != "kube-system" {
@@ -161,26 +158,8 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 			simRequest.Pods = append(simRequest.Pods, pod)
 		}
 	}
-
-	for _, n := range cs.Nodes {
-		systemComponentRes := systemComponentResourcesPerNode[n.Name]
-		revisedAllocatable := computeRevisedAllocatable(n.Allocatable, systemComponentRes, nil)
-		node := api.NodeInfo{
-			Name:        n.Name,
-			Labels:      n.Labels,
-			Taints:      n.Taints,
-			Allocatable: revisedAllocatable,
-			Capacity:    n.Capacity,
-		}
-		simRequest.Nodes = append(simRequest.Nodes, node)
-	}
 	nodeCountPerPool := deriveNodeCountPerWorkerPool(cs.Nodes)
 	nodePools := make([]api.NodePool, 0, len(cs.WorkerPools))
-
-	//maxResourceList, err := getMaxSystemComponentRequestsAcrossNodes(cs.Pods)
-	//if err != nil {
-	//	return api.SimulationRequest{}, err
-	//}
 	nodeTemplates := make(map[string]gsc.NodeTemplate, len(cs.WorkerPools))
 	for _, wp := range cs.WorkerPools {
 		count := nodeCountPerPool[wp.Name]
@@ -203,6 +182,22 @@ func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.Simulation
 		nodeTemplates[wp.MachineType] = *nodeTemplate
 	}
 	simRequest.NodeTemplates = nodeTemplates
+
+	for _, n := range cs.Nodes {
+		nodeTemplate, ok := nodeTemplates[n.Labels[common.InstanceTypeLabelKey]]
+		if !ok {
+			err = fmt.Errorf("createSimulationRequest cannot find node template for node %q", n.Name)
+			return
+		}
+		node := api.NodeInfo{
+			Name:        n.Name,
+			Labels:      n.Labels,
+			Taints:      n.Taints,
+			Allocatable: nodeTemplate.Allocatable,
+			Capacity:    n.Capacity,
+		}
+		simRequest.Nodes = append(simRequest.Nodes, node)
+	}
 	return
 }
 
@@ -221,79 +216,4 @@ func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
 		nodeCountPerPool[n.Labels["worker.gardener.cloud/pool"]]++
 	}
 	return nodeCountPerPool
-}
-
-func computeRevisedResourcesForNodeTemplate(nodeTemplate *gsc.NodeTemplate, sysComponentMaxResourceList corev1.ResourceList) {
-	kubeReservedCPU := resource.MustParse("80m")
-	kubeReservedMemory := resource.MustParse("1Gi")
-	kubeReservedResources := corev1.ResourceList{corev1.ResourceCPU: kubeReservedCPU, corev1.ResourceMemory: kubeReservedMemory}
-	nodeTemplate.Allocatable = computeRevisedAllocatable(nodeTemplate.Capacity, sysComponentMaxResourceList, kubeReservedResources)
-	revisedPods := nodeTemplate.Allocatable.Pods()
-	revisedPods.Set(110)
-	nodeTemplate.Allocatable[corev1.ResourcePods] = *revisedPods
-	nodeTemplate.Capacity[corev1.ResourcePods] = *revisedPods
-}
-
-func computeRevisedAllocatable(originalAllocatable corev1.ResourceList, systemComponentsResources corev1.ResourceList, kubeReservedResources corev1.ResourceList) corev1.ResourceList {
-	revisedNodeAllocatable := originalAllocatable.DeepCopy()
-	revisedMem := revisedNodeAllocatable.Memory()
-	revisedMem.Sub(systemComponentsResources[corev1.ResourceMemory])
-
-	revisedCPU := revisedNodeAllocatable.Cpu()
-	revisedCPU.Sub(systemComponentsResources[corev1.ResourceCPU])
-
-	if kubeReservedResources != nil {
-		revisedMem.Sub(kubeReservedResources[corev1.ResourceMemory])
-		revisedCPU.Sub(kubeReservedResources[corev1.ResourceCPU])
-	}
-	revisedNodeAllocatable[corev1.ResourceMemory] = *revisedMem
-	revisedNodeAllocatable[corev1.ResourceCPU] = *revisedCPU
-	return revisedNodeAllocatable
-}
-
-func getMaxSystemComponentRequestsAcrossNodes(pods []gsc.PodInfo) (corev1.ResourceList, error) {
-	nodeSystemComponentResourceList := collectKubeSystemPodsResourceRequestsByNode(pods)
-	maxResourceList := corev1.ResourceList{}
-	for _, r := range nodeSystemComponentResourceList {
-		for name, q := range r {
-			val, ok := maxResourceList[name]
-			if !ok {
-				maxResourceList[name] = q
-				continue
-			}
-			if val.Cmp(q) < 0 {
-				maxResourceList[name] = q
-			}
-		}
-	}
-	return maxResourceList, nil
-}
-
-func collectKubeSystemPodsResourceRequestsByNode(pods []gsc.PodInfo) map[string]corev1.ResourceList {
-	systemPods := lo.Filter(pods, func(po gsc.PodInfo, _ int) bool {
-		return po.Namespace == "kube-system"
-	})
-	podsByNode := lo.GroupBy(systemPods, func(pod gsc.PodInfo) string {
-		return pod.Spec.NodeName
-	})
-	nodeResourceRequests := make(map[string]corev1.ResourceList, len(podsByNode))
-	for nodeName, nodePods := range podsByNode {
-		nodeResourceRequests[nodeName] = sumResourceRequests(nodePods)
-	}
-	return nodeResourceRequests
-}
-
-func sumResourceRequests(pods []gsc.PodInfo) corev1.ResourceList {
-	var totalMemory resource.Quantity
-	var totalCPU resource.Quantity
-	for _, pod := range pods {
-		for _, container := range pod.Spec.Containers {
-			totalMemory.Add(util.NilOr(container.Resources.Requests.Memory(), resource.Quantity{}))
-			totalCPU.Add(util.NilOr(container.Resources.Requests.Cpu(), resource.Quantity{}))
-		}
-	}
-	return corev1.ResourceList{
-		corev1.ResourceMemory: totalMemory,
-		corev1.ResourceCPU:    totalCPU,
-	}
 }
