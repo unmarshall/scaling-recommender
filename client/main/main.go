@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	gsc "github.com/elankath/gardener-scaling-common"
-	scalehist "github.com/elankath/gardener-scaling-history"
-	"github.com/samber/lo"
 	"io"
 	"log"
 	"net/http"
@@ -30,23 +28,18 @@ func main() {
 	//}
 	//scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "scenarios.json"))
 	//scenarios, err := util.ReadScenarios(filepath.Join("client", "assets", "garden-i034796-g2-db-replay.json"))
-	scenarios, err := util.ReadScenarios("/Users/i062009/go/src/github.com/elankath/poc/db/scenarios/garden-i034796-g2-db-replay.json")
+	//scenarios, err := util.ReadScenarios("/Users/i062009/go/src/github.com/elankath/poc/db/scenarios/garden-i034796-g2-db-replay.json")
+	scenario, err := util.ReadScenario("/Users/I749592/go/src/github.com/elankath/gardener-scaling-reports/live_hc-eu30_prod-gc-dmi_ca-replay-3.json")
 	dieOnError(err)
-	clusterSnapshots := lo.Map(scenarios, func(scenario scalehist.Scenario, index int) gsc.ClusterSnapshot {
-		return scenario.ClusterSnapshot
-	})
-
+	clusterSnapshot := scenario.ClusterSnapshot
 	dieOnError(err)
-	for _, clusterSnapshot := range clusterSnapshots {
-		recommendation, err := runSimulation(clusterSnapshot)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		//caRecommendation := util.ExtractCAScaleUpRecommendation(scenarios[i].NodeGroups)
-		prettyPrint(recommendation, "recommendation: ")
-		//prettyPrint(caRecommendation, "CA recommendation: ")
+	recommendation, err := runSimulation(clusterSnapshot)
+	if err != nil {
+		fmt.Println(err)
 	}
+	//caRecommendation := util.ExtractCAScaleUpRecommendation(scenarios[i].NodeGroups)
+	prettyPrint(recommendation, "recommendation: ")
+	//prettyPrint(caRecommendation, "CA recommendation: ")
 }
 
 func prettyPrint[T any](obj T, message string) {

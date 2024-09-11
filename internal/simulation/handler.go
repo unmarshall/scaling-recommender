@@ -49,7 +49,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	simRequest, err := createSimulationRequest(clusterSnapshot)
+	simRequest, err := h.createSimulationRequest(r.Context(), clusterSnapshot)
 	if err != nil {
 		web.ErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
@@ -140,19 +140,24 @@ func untaintNodes(ctx context.Context, cl client.Client, taintKey string, nodes 
 	return errs
 }
 
-func createSimulationRequest(cs *gsc.ClusterSnapshot) (simRequest api.SimulationRequest, err error) {
+func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSnapshot) (simRequest api.SimulationRequest, err error) {
 	simRequest.ID = cs.ID
 	for _, pc := range cs.PriorityClasses {
 		simRequest.PriorityClasses = append(simRequest.PriorityClasses, pc.PriorityClass)
 	}
-
-	for _, p := range cs.Pods {
+	var podList corev1.PodList
+	targetClient := h.engine.TargetClient()
+	if err = targetClient.List(ctx, &podList); err != nil {
+		err = fmt.Errorf("[createSimulationRequest] failed to list pods in target cluster: %w", err)
+		return
+	}
+	for _, p := range podList.Items {
 		if p.Namespace != "kube-system" {
 			pod := api.PodInfo{
 				Name:              p.Name,
 				Labels:            p.Labels,
 				Spec:              p.Spec,
-				NominatedNodeName: p.NominatedNodeName,
+				NominatedNodeName: p.Status.NominatedNodeName,
 				Count:             1,
 			}
 			simRequest.Pods = append(simRequest.Pods, pod)
