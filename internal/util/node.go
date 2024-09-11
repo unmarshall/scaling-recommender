@@ -108,6 +108,11 @@ func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[runRef.A] = runRef.B
 	labels[common.TopologyHostLabelKey] = nodeName
+	labels[common.WorkerPoolLabelKey] = poolName
+	labels[common.GKETopologyLabelKey] = zone
+	labels[common.AWSTopologyLabelKey] = zone
+	labels[common.FailureDomainLabelKey] = zone
+	labels[common.WorkerGroupLabelKey] = poolName
 	taints := []corev1.Taint{
 		{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
 	}
@@ -124,6 +129,12 @@ func ConstructNodeFromNodeTemplate(nodeTemplate gsc.NodeTemplate, poolName, zone
 	labels := nodeTemplate.Labels
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[common.TopologyHostLabelKey] = nodeName
+	labels[common.WorkerPoolLabelKey] = poolName
+	labels[common.GKETopologyLabelKey] = zone
+	labels[common.AWSTopologyLabelKey] = zone
+	labels[common.FailureDomainLabelKey] = zone
+	labels[common.WorkerGroupLabelKey] = poolName
+
 	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, nodeTemplate.Taints), nil
 }
 

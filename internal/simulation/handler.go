@@ -218,7 +218,8 @@ func findNodeTemplate(instanceType string, csNodeTemplates map[string]gsc.NodeTe
 func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {
 	nodeCountPerPool := make(map[string]int)
 	for _, n := range nodes {
-		nodeCountPerPool[n.Labels["worker.gardener.cloud/pool"]]++
+		nodeCountPerPool[n.Labels[common.WorkerPoolLabelKey]]++
+
 	}
 	return nodeCountPerPool
 }
