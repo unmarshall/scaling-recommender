@@ -230,7 +230,12 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 		err           error
 	)
 	defer wg.Done()
-	defer r.cleanUpNodePoolSimRun(ctx, runRef, &scheduledPods)
+	defer func() {
+		err = r.cleanUpNodePoolSimRun(ctx, runRef, &scheduledPods)
+		if err != nil {
+			slog.Error("Failed to clean up simulation run", "runRef", runRef.B, "error", err)
+		}
+	}()
 	// create a copy of all nodes and scheduled pods only
 	if scheduledPods, err = r.setupSimulationRun(ctx, runRef); err != nil {
 		resultCh <- errorRunResult(err)
