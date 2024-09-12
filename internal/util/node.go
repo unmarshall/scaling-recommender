@@ -68,8 +68,12 @@ func evaluateNodeFilters(node *corev1.Node, filters []common.NodeFilter) bool {
 func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplates map[string]gsc.NodeTemplate) ([]*corev1.Node, error) {
 	nodes := make([]*corev1.Node, 0, len(nodeInfos))
 	for _, np := range nodeInfos {
-		nodeTemplate, ok := nodeTemplates[np.Labels[common.InstanceTypeLabelKey]]
-		if !ok {
+		//nodeTemplate, ok := nodeTemplates[np.Labels[common.InstanceTypeLabelKey]]
+		//if !ok {
+		//	return nil, fmt.Errorf("no template found for instance type %s", np.Labels[common.InstanceTypeLabelKey])
+		//}
+		nodeTemplate := FindNodeTemplateForInstanceType(np.Labels[common.InstanceTypeLabelKey], nodeTemplates)
+		if nodeTemplate == nil {
 			return nil, fmt.Errorf("no template found for instance type %s", np.Labels[common.InstanceTypeLabelKey])
 		}
 		node := &corev1.Node{
@@ -92,6 +96,24 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplates map[str
 	return nodes, nil
 }
 
+func FindNodeTemplate(nodeTemplates map[string]gsc.NodeTemplate, poolName, zone string) *gsc.NodeTemplate {
+	for _, nt := range nodeTemplates {
+		if nt.Zone == zone && nt.Labels[common.WorkerPoolLabelKey] == poolName {
+			return &nt
+		}
+	}
+	return nil
+}
+
+func FindNodeTemplateForInstanceType(instanceType string, csNodeTemplates map[string]gsc.NodeTemplate) *gsc.NodeTemplate {
+	for _, nt := range csNodeTemplates {
+		if nt.InstanceType == instanceType {
+			return &nt
+		}
+	}
+	return nil
+}
+
 func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string, runRef lo.Tuple2[string, string]) (*corev1.Node, error) {
 	nodeNamePrefix, err := GenerateRandomString(4)
 	if err != nil {
@@ -108,11 +130,11 @@ func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[runRef.A] = runRef.B
 	labels[common.TopologyHostLabelKey] = nodeName
-	labels[common.WorkerPoolLabelKey] = poolName
-	labels[common.GKETopologyLabelKey] = zone
-	labels[common.AWSTopologyLabelKey] = zone
-	labels[common.FailureDomainLabelKey] = zone
-	labels[common.WorkerGroupLabelKey] = poolName
+	//labels[common.WorkerPoolLabelKey] = poolName
+	//labels[common.GKETopologyLabelKey] = zone
+	//labels[common.AWSTopologyLabelKey] = zone
+	//labels[common.FailureDomainLabelKey] = zone
+	//labels[common.WorkerGroupLabelKey] = poolName
 	taints := []corev1.Taint{
 		{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule},
 	}
@@ -129,11 +151,11 @@ func ConstructNodeFromNodeTemplate(nodeTemplate gsc.NodeTemplate, poolName, zone
 	labels := nodeTemplate.Labels
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[common.TopologyHostLabelKey] = nodeName
-	labels[common.WorkerPoolLabelKey] = poolName
-	labels[common.GKETopologyLabelKey] = zone
-	labels[common.AWSTopologyLabelKey] = zone
-	labels[common.FailureDomainLabelKey] = zone
-	labels[common.WorkerGroupLabelKey] = poolName
+	//labels[common.WorkerPoolLabelKey] = poolName
+	//labels[common.GKETopologyLabelKey] = zone
+	//labels[common.AWSTopologyLabelKey] = zone
+	//labels[common.FailureDomainLabelKey] = zone
+	//labels[common.WorkerGroupLabelKey] = poolName
 
 	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, nodeTemplate.Taints), nil
 }

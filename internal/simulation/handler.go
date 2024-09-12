@@ -89,8 +89,12 @@ func (h *Handler) applyRecommendation(ctx context.Context, recommendations []api
 	for _, r := range recommendations {
 		slog.Info("Applying recommendation", "nodePool", r.NodePoolName, "zone", r.Zone, "instanceType", r.InstanceType, "incrementBy", r.IncrementBy)
 		for i := int32(0); i < r.IncrementBy; i++ {
-			nodeTemplate := nodeTemplates[r.InstanceType]
-			node, err := util.ConstructNodeFromNodeTemplate(nodeTemplate, r.NodePoolName, r.Zone)
+			//nodeTemplate := nodeTemplates[r.InstanceType]
+			nodeTemplate := util.FindNodeTemplate(nodeTemplates, r.NodePoolName, r.Zone)
+			if nodeTemplate == nil {
+				return fmt.Errorf("node template not found for instance type %s", r.InstanceType)
+			}
+			node, err := util.ConstructNodeFromNodeTemplate(*nodeTemplate, r.NodePoolName, r.Zone)
 			if err != nil {
 				return err
 			}
@@ -165,7 +169,8 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 	}
 	nodeCountPerPool := deriveNodeCountPerWorkerPool(cs.Nodes)
 	nodePools := make([]api.NodePool, 0, len(cs.WorkerPools))
-	nodeTemplates := make(map[string]gsc.NodeTemplate, len(cs.WorkerPools))
+	nodeTemplates := cs.AutoscalerConfig.NodeTemplates
+	//nodeTemplates := make(map[string]gsc.NodeTemplate, len(cs.WorkerPools))
 	for _, wp := range cs.WorkerPools {
 		count := nodeCountPerPool[wp.Name]
 		nodePool := api.NodePool{
@@ -178,22 +183,27 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 		nodePools = append(nodePools, nodePool)
 		simRequest.NodePools = nodePools
 
-		nodeTemplate := findNodeTemplate(wp.MachineType, cs.AutoscalerConfig.NodeTemplates)
-		if nodeTemplate == nil {
-			err = fmt.Errorf("createSimulationRequest cannot find node template for workerpool %q", wp.Name)
-			return
-		}
-		//computeRevisedResourcesForNodeTemplate(nodeTemplate, maxResourceList)
-		nodeTemplates[wp.MachineType] = *nodeTemplate
+		//nodeTemplate := FindNodeTemplateForInstanceType(wp.MachineType, cs.AutoscalerConfig.NodeTemplates)
+		//if nodeTemplate == nil {
+		//	err = fmt.Errorf("createSimulationRequest cannot find node template for workerpool %q", wp.Name)
+		//	return
+		//}
+		////computeRevisedResourcesForNodeTemplate(nodeTemplate, maxResourceList)
+		//nodeTemplates[wp.MachineType] = *nodeTemplate
 	}
 	simRequest.NodeTemplates = nodeTemplates
 
 	for _, n := range cs.Nodes {
-		nodeTemplate, ok := nodeTemplates[n.Labels[common.InstanceTypeLabelKey]]
-		if !ok {
+		//nodeTemplate, ok := nodeTemplates[n.Labels[common.InstanceTypeLabelKey]]
+		nodeTemplate := util.FindNodeTemplateForInstanceType(n.Labels[common.InstanceTypeLabelKey], simRequest.NodeTemplates)
+		if nodeTemplate == nil {
 			err = fmt.Errorf("createSimulationRequest cannot find node template for node %q", n.Name)
 			return
 		}
+		//if !ok {
+		//	err = fmt.Errorf("createSimulationRequest cannot find node template for node %q", n.Name)
+		//	return
+		//}
 		node := api.NodeInfo{
 			Name:        n.Name,
 			Labels:      n.Labels,
@@ -204,15 +214,6 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 		simRequest.Nodes = append(simRequest.Nodes, node)
 	}
 	return
-}
-
-func findNodeTemplate(instanceType string, csNodeTemplates map[string]gsc.NodeTemplate) *gsc.NodeTemplate {
-	for _, nt := range csNodeTemplates {
-		if nt.InstanceType == instanceType {
-			return &nt
-		}
-	}
-	return nil
 }
 
 func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {

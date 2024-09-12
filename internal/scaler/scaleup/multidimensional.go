@@ -253,11 +253,15 @@ func (r *recommender) runSimForZone(ctx context.Context, runRef lo.Tuple2[string
 	)
 	simRunLogs = append(simRunLogs, fmt.Sprintf("Starting simulation run for nodePool: %s, zone: %s, runRef: %s...\n", nodePool.Name, zone, runRef.B))
 	defer r.cleanUpSimRunForZone(ctx, nodePool.Name, runRef.B, &nodeName, &unscheduledPodNames)
-	foundNodeTemplate, ok := r.nodeTemplates[nodePool.InstanceType]
-	if !ok {
+	//foundNodeTemplate, ok := r.nodeTemplates[nodePool.InstanceType]
+	foundNodeTemplate := util.FindNodeTemplate(r.nodeTemplates, nodePool.Name, zone)
+	if foundNodeTemplate == nil {
 		return errorRunResult(fmt.Errorf("node template not found for instance type %s", nodePool.InstanceType))
 	}
-	node, err := util.ConstructNodeForSimRun(foundNodeTemplate, nodePool.Name, zone, runRef)
+	//if !ok {
+	//	return errorRunResult(fmt.Errorf("node template not found for instance type %s", nodePool.InstanceType))
+	//}
+	node, err := util.ConstructNodeForSimRun(*foundNodeTemplate, nodePool.Name, zone, runRef)
 	if err != nil {
 		return errorRunResult(err)
 	}
@@ -479,11 +483,15 @@ func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context,
 }
 
 func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
-	nodeTemplate, ok := r.nodeTemplates[winningRunResult.instanceType]
-	if !ok {
+	//nodeTemplate, ok := r.nodeTemplates[winningRunResult.instanceType]
+	//if !ok {
+	//	return nil, fmt.Errorf("node template not found for instance type %s", winningRunResult.instanceType)
+	//}
+	nodeTemplate := util.FindNodeTemplate(r.nodeTemplates, winningRunResult.nodePoolName, winningRunResult.zone)
+	if nodeTemplate == nil {
 		return nil, fmt.Errorf("node template not found for instance type %s", winningRunResult.instanceType)
 	}
-	node, err := util.ConstructNodeFromNodeTemplate(nodeTemplate, winningRunResult.nodePoolName, winningRunResult.zone)
+	node, err := util.ConstructNodeFromNodeTemplate(*nodeTemplate, winningRunResult.nodePoolName, winningRunResult.zone)
 	if err != nil {
 		return nil, err
 	}
