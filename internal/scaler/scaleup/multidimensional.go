@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -38,15 +40,25 @@ const (
 )
 
 type recommender struct {
-	nc            kvclapi.NodeControl
-	pc            kvclapi.PodControl
-	ec            kvclapi.EventControl
-	pa            pricing.InstancePricingAccess
-	client        client.Client
-	scorer        scaler.Scorer
-	state         simulationState
-	nodeTemplates map[string]gsc.NodeTemplate
-	logger        *slog.Logger
+	nc             kvclapi.NodeControl
+	pc             kvclapi.PodControl
+	ec             kvclapi.EventControl
+	pa             pricing.InstancePricingAccess
+	client         client.Client
+	scorer         scaler.Scorer
+	state          simulationState
+	nodeTemplates  map[string]gsc.NodeTemplate
+	logger         *slog.Logger
+	resultLogsPath string
+}
+
+type podResourceInfo struct {
+	name    string
+	request corev1.ResourceList
+}
+
+func (pri podResourceInfo) String() string {
+	return fmt.Sprintf("{name: %s, cpu: %s memory: %s}", pri.name, pri.request.Cpu().String(), pri.request.Memory().String())
 }
 
 type runResult struct {
@@ -56,7 +68,7 @@ type runResult struct {
 	instanceType    string
 	nodeScore       float64
 	unscheduledPods []*corev1.Pod
-	nodeToPods      map[string][]types.NamespacedName
+	nodeToPods      map[string][]podResourceInfo
 	nodeCapacity    corev1.ResourceList
 	err             error
 	logs            []string
@@ -116,6 +128,18 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 		recommendations []api.ScaleUpRecommendation
 		runNumber       int
 	)
+	resultLogsDir, err := makeResultsLogDir()
+	if err != nil {
+		return scaler.Result{Err: err}
+	}
+	resultsLogPath := filepath.Join(resultLogsDir, fmt.Sprintf("%s-results.log", simReq.ID))
+	resultsLogFile, err := os.OpenFile(resultsLogPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	defer func() {
+		if err = resultsLogFile.Close(); err != nil {
+			r.logger.Error("Failed to close results log file", "error", err)
+		}
+	}()
+	r.resultLogsPath = resultsLogPath
 	r.scorer = scorer
 	r.nodeTemplates = simReq.NodeTemplates
 	if err := r.initializeSimulationState(simReq); err != nil {
@@ -146,10 +170,17 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 		if err := r.syncWinningResult(ctx, &recommendation, winnerRunResult); err != nil {
 			return scaler.ErrorResult(err)
 		}
+		r.writeWinningResult(winnerRunResult, resultsLogFile)
 		r.logger.Info("For scale-up recommender", "runNumber", runNumber, "winning-score", recommendation)
 		recommendations = appendScaleUpRecommendation(recommendations, recommendation)
 	}
 	return scaler.OkScaleUpResult(recommendations, r.state.getUnscheduledPodObjectKeys())
+}
+
+func (r *recommender) writeWinningResult(result *runResult, file *os.File) {
+	if _, err := file.WriteString(fmt.Sprintf("NodePool: %s, Node: %s, Zone: %s, InstanceType: %s, ScheduledPods: %v\n", result.nodePoolName, result.nodeName, result.zone, result.instanceType, result.nodeToPods)); err != nil {
+		r.logger.Error("Failed to write winning result to file", "error", err)
+	}
 }
 
 func (r *recommender) initializeSimulationState(simReq api.SimulationRequest) error {
@@ -218,7 +249,7 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
 		runRef := lo.T2(simRunKey, rand.String(4))
-		r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
+		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
 	wg.Wait()
 	close(resultCh)
@@ -435,12 +466,16 @@ func (r *recommender) computeRunResult(nodePoolName, instanceType, zone string, 
 		}
 	}
 	unscheduledPods := make([]*corev1.Pod, 0, len(pods))
-	nodeToPods := make(map[string][]types.NamespacedName)
+	nodeToPods := make(map[string][]podResourceInfo)
 	for _, pod := range pods {
 		if pod.Spec.NodeName == "" {
 			unscheduledPods = append(unscheduledPods, pod)
 		} else {
-			nodeToPods[pod.Spec.NodeName] = append(nodeToPods[pod.Spec.NodeName], client.ObjectKeyFromObject(pod))
+			podResInfo := podResourceInfo{
+				name:    pod.Name,
+				request: cumulatePodRequests(pod),
+			}
+			nodeToPods[pod.Spec.NodeName] = append(nodeToPods[pod.Spec.NodeName], podResInfo)
 		}
 	}
 	return &runResult{
@@ -453,6 +488,22 @@ func (r *recommender) computeRunResult(nodePoolName, instanceType, zone string, 
 		nodeToPods:      nodeToPods,
 		nodeCapacity:    node.Status.Capacity,
 	}
+}
+
+func cumulatePodRequests(pod *corev1.Pod) corev1.ResourceList {
+	sumRequests := make(corev1.ResourceList)
+	for _, container := range pod.Spec.Containers {
+		for name, quantity := range container.Resources.Requests {
+			sumQuantity, ok := sumRequests[name]
+			if ok {
+				sumQuantity.Add(quantity)
+				sumRequests[name] = sumQuantity
+			} else {
+				sumRequests[name] = quantity
+			}
+		}
+	}
+	return sumRequests
 }
 
 func (r *recommender) syncWinningResult(ctx context.Context, recommendation *api.ScaleUpRecommendation, winningRunResult *runResult) error {
@@ -488,10 +539,6 @@ func (r *recommender) syncRecommenderStateWithWinningResult(ctx context.Context,
 }
 
 func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, winningRunResult *runResult) ([]string, error) {
-	//nodeTemplate, ok := r.nodeTemplates[winningRunResult.instanceType]
-	//if !ok {
-	//	return nil, fmt.Errorf("node template not found for instance type %s", winningRunResult.instanceType)
-	//}
 	nodeTemplate := util.FindNodeTemplate(r.nodeTemplates, winningRunResult.nodePoolName, winningRunResult.zone)
 	if nodeTemplate == nil {
 		return nil, fmt.Errorf("node template not found for instance type %s", winningRunResult.instanceType)
@@ -503,9 +550,9 @@ func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, w
 	node.Name = winningRunResult.nodeName
 	var originalPods []*corev1.Pod
 	var scheduledPods []*corev1.Pod
-	for nodeName, simPodObjectKeys := range winningRunResult.nodeToPods {
-		for _, simPodObjectKey := range simPodObjectKeys {
-			podName := toOriginalResourceName(simPodObjectKey.Name)
+	for nodeName, simPodResInfos := range winningRunResult.nodeToPods {
+		for _, simPodResInfo := range simPodResInfos {
+			podName := toOriginalResourceName(simPodResInfo.name)
 			pod, ok := r.state.originalUnscheduledPods[podName]
 			if !ok {
 				return nil, fmt.Errorf("unexpected error, pod: %s not found in the original pods collection", podName)
