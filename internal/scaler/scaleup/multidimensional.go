@@ -2,6 +2,7 @@ package scaleup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -50,6 +51,19 @@ type recommender struct {
 	nodeTemplates  map[string]gsc.NodeTemplate
 	logger         *slog.Logger
 	resultLogsPath string
+}
+
+type nodeUtilisationInfo struct {
+	Zone              string              `json:"zone,omitempty"`
+	NodePoolName      string              `json:"node_pool_name,omitempty"`
+	Pods              []string            `json:"pods"`
+	ResourcesConsumed corev1.ResourceList `json:"resources_consumed"`
+	Capacity          corev1.ResourceList `json:"capacity,omitempty"`
+}
+
+type recommenderRunResult struct {
+	NodeUtilInfos   map[string]nodeUtilisationInfo `json:"node_util_infos,omitempty"`
+	UnscheduledPods []string                       `json:"unscheduled_pods,omitempty"`
 }
 
 type podResourceInfo struct {
@@ -125,9 +139,11 @@ func NewRecommender(vcp kvclapi.ControlPlane, baseLogger *slog.Logger) scaler.Re
 
 func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.SimulationRequest) scaler.Result {
 	var (
-		recommendations []api.ScaleUpRecommendation
-		runNumber       int
+		recommendations   []api.ScaleUpRecommendation
+		runNumber         int
+		recommenderResult recommenderRunResult
 	)
+	nodeUtilisationInfos := make(map[string]nodeUtilisationInfo)
 	resultLogsDir, err := makeResultsLogDir()
 	if err != nil {
 		return scaler.Result{Err: err}
@@ -170,11 +186,28 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 		if err := r.syncWinningResult(ctx, &recommendation, winnerRunResult); err != nil {
 			return scaler.ErrorResult(err)
 		}
+		nodeUtilisationInfos = appendNodeUtilisationInfo(*winnerRunResult, nodeUtilisationInfos)
 		r.writeWinningResult(winnerRunResult, resultsLogFile)
 		r.logger.Info("For scale-up recommender", "runNumber", runNumber, "winning-score", recommendation)
 		recommendations = appendScaleUpRecommendation(recommendations, recommendation)
 	}
+	recommenderRunResultLogPath := filepath.Join(resultLogsDir, fmt.Sprintf("%s-util-info.json", simReq.ID))
+	recommenderResult = recommenderRunResult{
+		NodeUtilInfos:   nodeUtilisationInfos,
+		UnscheduledPods: util.GetPodNames(r.state.unscheduledPods),
+	}
+	r.writeRecommenderRunResults(recommenderResult, recommenderRunResultLogPath)
 	return scaler.OkScaleUpResult(recommendations, r.state.getUnscheduledPodObjectKeys())
+}
+
+func (r *recommender) writeRecommenderRunResults(recommenderResult recommenderRunResult, resultsLogPath string) {
+	bytes, err := json.Marshal(recommenderResult)
+	if err != nil {
+		r.logger.Error("Failed to marshal recommender run result", "error", err)
+	}
+	if err = os.WriteFile(resultsLogPath, bytes, 0644); err != nil {
+		r.logger.Error("Failed to write recommender run result to file", "error", err)
+	}
 }
 
 func (r *recommender) writeWinningResult(result *runResult, file *os.File) {

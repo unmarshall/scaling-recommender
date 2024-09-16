@@ -91,6 +91,47 @@ func appendScaleUpRecommendation(recommendations []api.ScaleUpRecommendation, re
 	return recommendations
 }
 
+func appendNodeUtilisationInfo(winningRunResult runResult, utilisationInfos map[string]nodeUtilisationInfo) map[string]nodeUtilisationInfo {
+	info := nodeUtilisationInfo{
+		Zone:         winningRunResult.zone,
+		NodePoolName: winningRunResult.nodePoolName,
+		Capacity:     winningRunResult.nodeCapacity,
+	}
+	utilisationInfos[winningRunResult.nodeName] = info
+	for nodeName, podInfos := range winningRunResult.nodeToPods {
+		nodeName = toOriginalResourceName(nodeName)
+		resourcesConsumed := &corev1.ResourceList{}
+		resourcesConsumed = lo.Reduce(podInfos, func(resConsumed *corev1.ResourceList, item podResourceInfo, index int) *corev1.ResourceList {
+			for k, v := range item.request {
+				if val, ok := (*resConsumed)[k]; ok {
+					val.Add(v)
+					(*resConsumed)[k] = val
+				} else {
+					(*resConsumed)[k] = v
+				}
+			}
+			return resConsumed
+		}, resourcesConsumed)
+		utilInfo, ok := utilisationInfos[nodeName]
+		if ok {
+			utilInfo.Pods = append(utilInfo.Pods, lo.Map(podInfos, func(pri podResourceInfo, _ int) string {
+				return pri.name
+			})...)
+
+			utilInfo.ResourcesConsumed = *resourcesConsumed
+			utilisationInfos[nodeName] = utilInfo
+		} else {
+			utilisationInfos[nodeName] = nodeUtilisationInfo{
+				Pods: lo.Map(podInfos, func(pri podResourceInfo, _ int) string {
+					return pri.name
+				}),
+				ResourcesConsumed: *resourcesConsumed,
+			}
+		}
+	}
+	return utilisationInfos
+}
+
 func fromOriginalResourceName(name, suffix string) string {
 	name = strings.TrimPrefix(name, "shoot--")
 	return fmt.Sprintf(resourceNameFormat, name, suffix)
