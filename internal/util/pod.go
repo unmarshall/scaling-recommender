@@ -81,7 +81,7 @@ func ConstructPodsFromPodInfos(podInfos []api.PodInfo, sortOrder string) []*core
 			Count(podInfo.Count)
 		pods = append(pods, podBuilder.Build()...)
 	}
-	sortPods(pods, sortOrder)
+	// sortPods(pods, sortOrder)
 	return pods
 }
 
