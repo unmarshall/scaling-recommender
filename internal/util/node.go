@@ -2,7 +2,10 @@ package util
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"golang.org/x/exp/maps"
+	"log/slog"
 	"strings"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/common"
@@ -95,6 +98,46 @@ func ConstructNodesFromNodeInfos(nodeInfos []api.NodeInfo, nodeTemplates map[str
 	}
 	return nodes, nil
 }
+func CreateAndUntaintNodes(ctx context.Context, cl client.Client, nodes []*corev1.Node) error {
+	if err := CreateNodes(ctx, cl, nodes); err != nil {
+		return err
+	}
+	return UntaintNodes(ctx, cl, common.NotReadyTaintKey, nodes)
+}
+
+func CreateNodes(ctx context.Context, cl client.Client, nodes []*corev1.Node) error {
+	var errs error
+	for _, node := range nodes {
+		node.ObjectMeta.ResourceVersion = ""
+		node.ObjectMeta.UID = ""
+		errs = errors.Join(errs, cl.Create(ctx, node))
+
+	}
+	return errs
+}
+
+func UntaintNodes(ctx context.Context, cl client.Client, taintKey string, nodes []*corev1.Node) error {
+	var errs error
+	failedToPatchNodeNames := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		patch := client.MergeFromWithOptions(node.DeepCopy(), client.MergeFromWithOptimisticLock{})
+		var newTaints []corev1.Taint
+		for _, taint := range node.Spec.Taints {
+			if taint.Key != taintKey {
+				newTaints = append(newTaints, taint)
+			}
+		}
+		node.Spec.Taints = newTaints
+		if err := cl.Patch(ctx, node, patch); err != nil {
+			failedToPatchNodeNames = append(failedToPatchNodeNames, node.Name)
+			errs = errors.Join(errs, err)
+		}
+	}
+	if errs != nil {
+		slog.Error("failed to remove taint from nodes", "taint", taintKey, "nodes", failedToPatchNodeNames, "error", errs)
+	}
+	return errs
+}
 
 func FindNodeTemplate(nodeTemplates map[string]gsc.NodeTemplate, poolName, zone string) *gsc.NodeTemplate {
 	for _, nt := range nodeTemplates {
@@ -120,7 +163,7 @@ func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string
 		return nil, err
 	}
 	nodeName := nodeNamePrefix + "-" + poolName + "-sr-" + runRef.B
-	labels := nodeTemplate.Labels
+	labels := maps.Clone(nodeTemplate.Labels)
 	delete(labels, "kubernetes.io/role/node")
 	for key := range labels {
 		if strings.HasPrefix(key, "kubernetes.io/cluster") {
@@ -148,7 +191,7 @@ func ConstructNodeFromNodeTemplate(nodeTemplate gsc.NodeTemplate, poolName, zone
 		return nil, err
 	}
 	nodeName := nodeNamePrefix + "-" + poolName
-	labels := nodeTemplate.Labels
+	labels := maps.Clone(nodeTemplate.Labels)
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[common.TopologyHostLabelKey] = nodeName
 	//labels[common.WorkerPoolLabelKey] = poolName

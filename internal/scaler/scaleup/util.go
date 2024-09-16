@@ -71,6 +71,7 @@ func createScaleUpRecommendationFromResult(result runResult) api.ScaleUpRecommen
 		NodePoolName: result.nodePoolName,
 		IncrementBy:  int32(1),
 		InstanceType: result.instanceType,
+		NodeNames:    []string{result.nodeName},
 	}
 }
 
@@ -79,6 +80,7 @@ func appendScaleUpRecommendation(recommendations []api.ScaleUpRecommendation, re
 	for i, r := range recommendations {
 		if r.NodePoolName == recommendation.NodePoolName && r.Zone == recommendation.Zone {
 			r.IncrementBy += recommendation.IncrementBy
+			r.NodeNames = append(r.NodeNames, recommendation.NodeNames...)
 			found = true
 			recommendations[i] = r
 		}
@@ -104,7 +106,7 @@ func makeResultsLogDir() (string, error) {
 		return "", err
 	}
 	tmpDir := filepath.Join(rootDir, "tmp")
-	if err = os.Mkdir(tmpDir, os.ModePerm); err != nil {
+	if err = os.Mkdir(tmpDir, os.ModePerm); err != nil && !os.IsExist(err) {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
 	return tmpDir, nil

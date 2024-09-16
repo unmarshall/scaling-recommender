@@ -85,10 +85,11 @@ type Recommendation struct {
 }
 
 type ScaleUpRecommendation struct {
-	Zone         string `json:"zone"`
-	NodePoolName string `json:"nodePoolName"`
-	IncrementBy  int32  `json:"incrementBy"`
-	InstanceType string `json:"instanceType"`
+	Zone         string   `json:"zone"`
+	NodePoolName string   `json:"nodePoolName"`
+	IncrementBy  int32    `json:"incrementBy"`
+	InstanceType string   `json:"instanceType"`
+	NodeNames    []string `json:"nodeNames,omitempty"`
 }
 
 type RecommendationResponse struct {

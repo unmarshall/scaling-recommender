@@ -79,7 +79,8 @@ func parseCmdArgs() (api.AppConfig, error) {
 	if err := fs.Parse(args); err != nil {
 		return config, err
 	}
-	return config, nil
+	err := resolveBinaryAssetsPath(&config)
+	return config, err
 }
 
 func validateConfig(config api.AppConfig) error {
@@ -96,4 +97,18 @@ func validateConfig(config api.AppConfig) error {
 		return fmt.Errorf("scoring strategy %s is not supported", config.ScoringStrategy)
 	}
 	return nil
+}
+
+func resolveBinaryAssetsPath(config *api.AppConfig) error {
+	if config.BinaryAssetsPath == "" {
+		config.BinaryAssetsPath = getBinaryAssetsPathFromEnv()
+	}
+	if config.BinaryAssetsPath == "" {
+		return fmt.Errorf("cannot find binary-assets-path")
+	}
+	return nil
+}
+
+func getBinaryAssetsPathFromEnv() string {
+	return os.Getenv("BINARY_ASSETS_DIR")
 }

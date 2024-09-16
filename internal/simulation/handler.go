@@ -2,7 +2,6 @@ package simulation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	gsc "github.com/elankath/gardener-scaling-common"
 	corev1 "k8s.io/api/core/v1"
@@ -10,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/common"
@@ -45,12 +43,14 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 
 	clusterSnapshot, err := web.ParseClusterSnapshot(r.Body)
 	if err != nil {
+		slog.Info("error parsing cluster snapshot", "error", err)
 		web.ErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	simRequest, err := h.createSimulationRequest(r.Context(), clusterSnapshot)
 	if err != nil {
+		slog.Error("error creating simulation request", "error", err)
 		web.ErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -98,50 +98,11 @@ func (h *Handler) applyRecommendation(ctx context.Context, recommendations []api
 			if err != nil {
 				return err
 			}
+			node.Name = r.NodeNames[i]
 			nodesToCreate = append(nodesToCreate, node)
 		}
 	}
-	return createAndUntaintNodes(ctx, targetClient, nodesToCreate)
-}
-
-func createAndUntaintNodes(ctx context.Context, cl client.Client, nodes []*corev1.Node) error {
-	if err := createNodes(ctx, cl, nodes); err != nil {
-		return err
-	}
-	return untaintNodes(ctx, cl, common.NotReadyTaintKey, nodes)
-}
-
-func createNodes(ctx context.Context, cl client.Client, nodes []*corev1.Node) error {
-	var errs error
-	for _, node := range nodes {
-		node.ObjectMeta.ResourceVersion = ""
-		node.ObjectMeta.UID = ""
-		errs = errors.Join(errs, cl.Create(ctx, node))
-	}
-	return errs
-}
-
-func untaintNodes(ctx context.Context, cl client.Client, taintKey string, nodes []*corev1.Node) error {
-	var errs error
-	failedToPatchNodeNames := make([]string, 0, len(nodes))
-	for _, node := range nodes {
-		patch := client.MergeFromWithOptions(node.DeepCopy(), client.MergeFromWithOptimisticLock{})
-		var newTaints []corev1.Taint
-		for _, taint := range node.Spec.Taints {
-			if taint.Key != taintKey {
-				newTaints = append(newTaints, taint)
-			}
-		}
-		node.Spec.Taints = newTaints
-		if err := cl.Patch(ctx, node, patch); err != nil {
-			failedToPatchNodeNames = append(failedToPatchNodeNames, node.Name)
-			errs = errors.Join(errs, err)
-		}
-	}
-	if errs != nil {
-		slog.Error("failed to remove taint from nodes", "taint", taintKey, "nodes", failedToPatchNodeNames, "error", errs)
-	}
-	return errs
+	return util.CreateAndUntaintNodes(ctx, targetClient, nodesToCreate)
 }
 
 func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSnapshot) (simRequest api.SimulationRequest, err error) {

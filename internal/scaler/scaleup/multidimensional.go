@@ -576,7 +576,7 @@ func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, w
 
 func (r *recommender) initializeVirtualCluster(ctx context.Context) error {
 	if r.state.existingNodes != nil {
-		if err := r.nc.CreateNodes(ctx, r.state.existingNodes...); err != nil {
+		if err := util.CreateAndUntaintNodes(ctx, r.client, r.state.existingNodes); err != nil {
 			return fmt.Errorf("failed to initialize virtual cluster with existing nodes: %w", err)
 		}
 	}
