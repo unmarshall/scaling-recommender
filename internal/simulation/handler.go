@@ -17,6 +17,13 @@ import (
 	"unmarshall/scaling-recommender/internal/util"
 )
 
+const (
+	LabelArch   = "beta.kubernetes.io/arch"
+	LabelOS     = "beta.kubernetes.io/os"
+	DefaultArch = "amd64"
+	DefaultOS   = "linux"
+)
+
 type Handler struct {
 	engine Engine
 }
@@ -94,11 +101,10 @@ func (h *Handler) applyRecommendation(ctx context.Context, recommendations []api
 			if nodeTemplate == nil {
 				return fmt.Errorf("node template not found for instance type %s", r.InstanceType)
 			}
-			node, err := util.ConstructNodeFromNodeTemplate(*nodeTemplate, r.NodePoolName, r.Zone)
+			node, err := util.ConstructNodeFromNodeTemplate(*nodeTemplate, r.Zone, r.NodeNames[i])
 			if err != nil {
 				return err
 			}
-			node.Name = r.NodeNames[i]
 			nodesToCreate = append(nodesToCreate, node)
 		}
 	}
@@ -131,6 +137,7 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 	nodeCountPerPool := deriveNodeCountPerWorkerPool(cs.Nodes)
 	nodePools := make([]api.NodePool, 0, len(cs.WorkerPools))
 	nodeTemplates := cs.AutoscalerConfig.NodeTemplates
+	addGenericLabels(nodeTemplates)
 	//nodeTemplates := make(map[string]gsc.NodeTemplate, len(cs.WorkerPools))
 	for _, wp := range cs.WorkerPools {
 		count := nodeCountPerPool[wp.Name]
@@ -175,6 +182,28 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 		simRequest.Nodes = append(simRequest.Nodes, node)
 	}
 	return
+}
+
+func addGenericLabels(nodeTemplates map[string]gsc.NodeTemplate) {
+	for name, nt := range nodeTemplates {
+		ntLabels := nt.Labels
+		ntLabels[LabelArch] = DefaultArch
+		ntLabels[corev1.LabelArchStable] = DefaultArch
+
+		ntLabels[LabelOS] = DefaultOS
+		ntLabels[corev1.LabelOSStable] = DefaultOS
+
+		ntLabels[corev1.LabelInstanceType] = nt.InstanceType
+		ntLabels[corev1.LabelInstanceTypeStable] = nt.InstanceType
+
+		ntLabels[corev1.LabelZoneRegion] = nt.Region
+		ntLabels[corev1.LabelZoneRegionStable] = nt.Region
+
+		ntLabels[corev1.LabelZoneFailureDomain] = nt.Zone
+		ntLabels[corev1.LabelZoneFailureDomainStable] = nt.Zone
+		nt.Labels = ntLabels
+		nodeTemplates[name] = nt
+	}
 }
 
 func deriveNodeCountPerWorkerPool(nodes []gsc.NodeInfo) map[string]int {

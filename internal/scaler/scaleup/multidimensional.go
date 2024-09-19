@@ -282,7 +282,7 @@ func (r *recommender) triggerNodePoolSimulations(ctx context.Context, resultCh c
 	for _, nodePool := range r.state.eligibleNodePools {
 		wg.Add(1)
 		runRef := lo.T2(simRunKey, rand.String(4))
-		go r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
+		r.runSimulationForNodePool(ctx, wg, nodePool, resultCh, runRef)
 	}
 	wg.Wait()
 	close(resultCh)
@@ -300,6 +300,9 @@ func (r *recommender) runSimulationForNodePool(ctx context.Context, wg *sync.Wai
 			slog.Error("Failed to clean up simulation run", "runRef", runRef.B, "error", err)
 		}
 	}()
+	if nodePool.Name == "edge-b" {
+		r.logger.Info("Running simulation for nodePool", "nodePool", nodePool.Name, "runRef", runRef.B)
+	}
 	// create a copy of all nodes and scheduled pods only
 	if scheduledPods, err = r.setupSimulationRun(ctx, runRef); err != nil {
 		resultCh <- errorRunResult(err)
@@ -475,9 +478,11 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 		podCopy.ObjectMeta.UID = ""
 		podCopy.ObjectMeta.ResourceVersion = ""
 		podCopy.ObjectMeta.CreationTimestamp = metav1.Time{}
-		podCopy.Spec.Tolerations = []corev1.Toleration{
+		tolerations := []corev1.Toleration{
 			{Key: runRef.A, Value: runRef.B, Effect: corev1.TaintEffectNoSchedule, Operator: corev1.TolerationOpEqual},
 		}
+		tolerations = append(tolerations, podCopy.Spec.Tolerations...)
+		podCopy.Spec.Tolerations = tolerations
 		if len(podCopy.Spec.TopologySpreadConstraints) > 0 {
 			updatedTSC := make([]corev1.TopologySpreadConstraint, 0, len(podCopy.Spec.TopologySpreadConstraints))
 			for _, tsc := range podCopy.Spec.TopologySpreadConstraints {
@@ -576,11 +581,10 @@ func (r *recommender) syncVirtualClusterWithWinningResult(ctx context.Context, w
 	if nodeTemplate == nil {
 		return nil, fmt.Errorf("node template not found for instance type %s", winningRunResult.instanceType)
 	}
-	node, err := util.ConstructNodeFromNodeTemplate(*nodeTemplate, winningRunResult.nodePoolName, winningRunResult.zone)
+	node, err := util.ConstructNodeFromNodeTemplate(*nodeTemplate, winningRunResult.zone, winningRunResult.nodeName)
 	if err != nil {
 		return nil, err
 	}
-	node.Name = winningRunResult.nodeName
 	var originalPods []*corev1.Pod
 	var scheduledPods []*corev1.Pod
 	for nodeName, simPodResInfos := range winningRunResult.nodeToPods {

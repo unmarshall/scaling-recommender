@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"log/slog"
 	"strings"
 	"unmarshall/scaling-recommender/api"
@@ -163,7 +162,10 @@ func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string
 		return nil, err
 	}
 	nodeName := nodeNamePrefix + "-" + poolName + "-sr-" + runRef.B
-	labels := maps.Clone(nodeTemplate.Labels)
+	labels := make(map[string]string, len(nodeTemplate.Labels))
+	for k, v := range nodeTemplate.Labels {
+		labels[k] = v
+	}
 	delete(labels, "kubernetes.io/role/node")
 	for key := range labels {
 		if strings.HasPrefix(key, "kubernetes.io/cluster") {
@@ -185,13 +187,11 @@ func ConstructNodeForSimRun(nodeTemplate gsc.NodeTemplate, poolName, zone string
 	return doConstructNodeFromNodeTemplate(nodeTemplate, nodeName, labels, taints), nil
 }
 
-func ConstructNodeFromNodeTemplate(nodeTemplate gsc.NodeTemplate, poolName, zone string) (*corev1.Node, error) {
-	nodeNamePrefix, err := GenerateRandomString(4)
-	if err != nil {
-		return nil, err
+func ConstructNodeFromNodeTemplate(nodeTemplate gsc.NodeTemplate, zone, nodeName string) (*corev1.Node, error) {
+	labels := make(map[string]string, len(nodeTemplate.Labels))
+	for k, v := range nodeTemplate.Labels {
+		labels[k] = v
 	}
-	nodeName := nodeNamePrefix + "-" + poolName
-	labels := maps.Clone(nodeTemplate.Labels)
 	labels[common.TopologyZoneLabelKey] = zone
 	labels[common.TopologyHostLabelKey] = nodeName
 	//labels[common.WorkerPoolLabelKey] = poolName

@@ -77,6 +77,9 @@ func (p *PodBuilder) Build() []*corev1.Pod {
 		if !lo.IsEmpty(p.nominatedNodeName) {
 			pod.Status.NominatedNodeName = p.nominatedNodeName
 		}
+		if !lo.IsEmpty(p.schedulerName) {
+			pod.Spec.SchedulerName = p.schedulerName
+		}
 		pods = append(pods, pod)
 	}
 	return pods
