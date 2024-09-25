@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"time"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/common"
@@ -122,6 +123,7 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 		err = fmt.Errorf("[createSimulationRequest] failed to list pods in target cluster: %w", err)
 		return
 	}
+	slices.SortFunc(podList.Items, util.SortPodInfoByCreationTimestamp)
 	for _, p := range podList.Items {
 		if p.Namespace != "kube-system" {
 			pod := api.PodInfo{
@@ -132,6 +134,9 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 				Count:             1,
 			}
 			simRequest.Pods = append(simRequest.Pods, pod)
+		}
+		if p.Spec.NodeName == "" {
+			slog.Info("[createSimulationRequest] unscheduled pod", "pod", p.Name)
 		}
 	}
 	nodeCountPerPool := deriveNodeCountPerWorkerPool(cs.Nodes)

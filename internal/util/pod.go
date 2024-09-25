@@ -146,3 +146,7 @@ func sortDescendingFn() func(*corev1.Pod, *corev1.Pod) int {
 		return -podA.Spec.Containers[0].Resources.Requests.Memory().Cmp(*podB.Spec.Containers[0].Resources.Requests.Memory())
 	}
 }
+
+func SortPodInfoByCreationTimestamp(a, b corev1.Pod) int {
+	return a.CreationTimestamp.Compare(b.CreationTimestamp.Time)
+}
