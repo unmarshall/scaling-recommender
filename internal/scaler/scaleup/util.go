@@ -3,9 +3,6 @@ package scaleup
 import (
 	"fmt"
 	"log/slog"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"unmarshall/scaling-recommender/api"
 	"unmarshall/scaling-recommender/internal/scaler"
@@ -142,21 +139,22 @@ func toOriginalResourceName(simResName string) string {
 }
 
 func makeResultsLogDir() (string, error) {
-	rootDir, err := getProjectRoot()
-	if err != nil {
-		return "", err
-	}
-	tmpDir := filepath.Join(rootDir, "tmp")
-	if err = os.Mkdir(tmpDir, os.ModePerm); err != nil && !os.IsExist(err) {
-		return "", fmt.Errorf("failed to create temp directory: %w", err)
-	}
-	return tmpDir, nil
+	//rootDir, err := getProjectRoot()
+	//if err != nil {
+	//	return "", err
+	//}
+	//tmpDir := filepath.Join(rootDir, "tmp")
+	//if err = os.Mkdir(tmpDir, os.ModePerm); err != nil && !os.IsExist(err) {
+	//	return "", fmt.Errorf("failed to create temp directory: %w", err)
+	//}
+	//return tmpDir, nil
+	return "/tmp", nil
 }
 
-func getProjectRoot() (string, error) {
-	path, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(path)), nil
-}
+//func getProjectRoot() (string, error) {
+//	path, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+//	if err != nil {
+//		return "", err
+//	}
+//	return strings.TrimSpace(string(path)), nil
+//}
