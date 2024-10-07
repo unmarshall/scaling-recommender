@@ -540,6 +540,15 @@ func (r *recommender) createAndDeployUnscheduledPods(ctx context.Context, runRef
 		if len(podCopy.Spec.TopologySpreadConstraints) > 0 {
 			updatedTSC := make([]corev1.TopologySpreadConstraint, 0, len(podCopy.Spec.TopologySpreadConstraints))
 			for _, tsc := range podCopy.Spec.TopologySpreadConstraints {
+				if tsc.LabelSelector == nil {
+					tsc.LabelSelector = &metav1.LabelSelector{
+						MatchLabels:      nil,
+						MatchExpressions: nil,
+					}
+				}
+				if tsc.LabelSelector.MatchLabels == nil {
+					tsc.LabelSelector.MatchLabels = make(map[string]string)
+				}
 				tsc.LabelSelector.MatchLabels[runRef.A] = runRef.B
 				updatedTSC = append(updatedTSC, tsc)
 			}
