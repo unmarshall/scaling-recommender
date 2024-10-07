@@ -98,3 +98,18 @@ type RecommendationResponse struct {
 	RunTime         string             `json:"runTime"`
 	Error           string             `json:"error,omitempty"`
 }
+
+// types for logging scores
+type RunResultScores struct {
+	RunNumber int
+	Scores    []NodePoolInstanceScore
+}
+
+type NodePoolInstanceScore struct {
+	Name           string
+	Zone           string
+	InstanceType   string
+	Winner         bool
+	Score          float64
+	NodeToPodNames map[string][]string
+}

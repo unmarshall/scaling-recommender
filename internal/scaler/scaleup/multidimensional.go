@@ -136,12 +136,12 @@ func NewRecommender(vcp kvclapi.ControlPlane, baseLogger *slog.Logger) scaler.Re
 		logger: baseLogger,
 	}
 }
-
 func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.SimulationRequest) scaler.Result {
 	var (
 		recommendations   []api.ScaleUpRecommendation
 		runNumber         int
 		recommenderResult recommenderRunResult
+		scores            []api.RunResultScores
 	)
 	nodeUtilisationInfos := make(map[string]nodeUtilisationInfo)
 	resultLogsDir, err := makeResultsLogDir()
@@ -149,10 +149,18 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 		return scaler.Result{Err: err}
 	}
 	resultsLogPath := filepath.Join(resultLogsDir, fmt.Sprintf("%s-results.log", simReq.ID))
+	scoresLogPath := "/tmp/scores.log"
 	resultsLogFile, err := os.OpenFile(resultsLogPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	scoresLogFile, err := os.OpenFile(scoresLogPath, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		r.logger.Error("Failed to open scores log file", "error", err)
+	}
 	defer func() {
 		if err = resultsLogFile.Close(); err != nil {
 			r.logger.Error("Failed to close results log file", "error", err)
+		}
+		if err = scoresLogFile.Close(); err != nil {
+			r.logger.Error("Failed to close scores log file", "error", err)
 		}
 	}()
 	r.resultLogsPath = resultsLogPath
@@ -172,7 +180,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 			break
 		}
 		simRunStartTime := time.Now()
-		winnerRunResult := r.runSimulation(ctx, runNumber)
+		winnerRunResult := r.runSimulation(ctx, runNumber, &scores)
 		r.logger.Info("Scale-up recommender run completed", "runNumber", runNumber, "duration", time.Since(simRunStartTime).Seconds())
 		if winnerRunResult == nil {
 			r.logger.Info("No winner could be identified. This will happen when no pods could be assigned. No more runs are required, exiting early", "runNumber", runNumber)
@@ -196,6 +204,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 		NodeUtilInfos:   nodeUtilisationInfos,
 		UnscheduledPods: util.GetPodNames(r.state.unscheduledPods),
 	}
+	r.writeScores(scores, scoresLogFile)
 	r.writeRecommenderRunResults(recommenderResult, recommenderRunResultLogPath)
 	return scaler.OkScaleUpResult(recommendations, r.state.getUnscheduledPodObjectKeys())
 }
@@ -213,6 +222,14 @@ func (r *recommender) writeRecommenderRunResults(recommenderResult recommenderRu
 func (r *recommender) writeWinningResult(result *runResult, file *os.File) {
 	if _, err := file.WriteString(fmt.Sprintf("NodePool: %s, Node: %s, Zone: %s, InstanceType: %s, ScheduledPods: %v\n", result.nodePoolName, result.nodeName, result.zone, result.instanceType, result.nodeToPods)); err != nil {
 		r.logger.Error("Failed to write winning result to file", "error", err)
+	}
+}
+
+func (r *recommender) writeScores(scores []api.RunResultScores, file *os.File) {
+	encoder := json.NewEncoder(file)
+	err := encoder.Encode(scores)
+	if err != nil {
+		r.logger.Error("Failed to marshal scores", "error", err)
 	}
 }
 
@@ -249,9 +266,19 @@ func (r *recommender) computeTotalZonesAcrossNodePools() int {
 	}
 	return totalZones
 }
+func getPodNamesForNodes(nodeToPods map[string][]podResourceInfo) map[string][]string {
+	nodeToPodNames := make(map[string][]string)
+	for nodeName, pods := range nodeToPods {
+		for _, pod := range pods {
+			nodeToPodNames[nodeName] = append(nodeToPodNames[nodeName], pod.name)
+		}
+	}
+	return nodeToPodNames
+}
 
-func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult {
+func (r *recommender) runSimulation(ctx context.Context, runNum int, scores *[]api.RunResultScores) *runResult {
 	var results []*runResult
+	scoresForRun := api.RunResultScores{RunNumber: runNum}
 	resultCh := make(chan *runResult, r.computeTotalZonesAcrossNodePools())
 	r.triggerNodePoolSimulations(ctx, resultCh, runNum)
 
@@ -264,6 +291,14 @@ func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult 
 		} else {
 			if result.HasWinner() {
 				results = append(results, result)
+				npScore := api.NodePoolInstanceScore{
+					Name:           result.nodePoolName,
+					Zone:           result.zone,
+					InstanceType:   result.instanceType,
+					Score:          result.nodeScore,
+					NodeToPodNames: getPodNamesForNodes(result.nodeToPods),
+				}
+				scoresForRun.Scores = append(scoresForRun.Scores, npScore)
 			}
 		}
 	}
@@ -271,6 +306,15 @@ func (r *recommender) runSimulation(ctx context.Context, runNum int) *runResult 
 		return errorRunResult(errs)
 	}
 	winnerRunResult := getWinningRunResult(results)
+	if winnerRunResult != nil {
+		for i, score := range scoresForRun.Scores {
+			if score.Name == winnerRunResult.nodePoolName && score.Zone == winnerRunResult.zone {
+				scoresForRun.Scores[i].Winner = true
+				break
+			}
+		}
+		*scores = append(*scores, scoresForRun)
+	}
 	printResultsSummary(runNum, results, winnerRunResult)
 	return winnerRunResult
 }
