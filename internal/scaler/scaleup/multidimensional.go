@@ -197,7 +197,8 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 		nodeUtilisationInfos = appendNodeUtilisationInfo(*winnerRunResult, nodeUtilisationInfos)
 		r.writeWinningResult(winnerRunResult, resultsLogFile)
 		r.logger.Info("For scale-up recommender", "runNumber", runNumber, "winning-score", recommendation)
-		recommendations = appendScaleUpRecommendation(recommendations, recommendation)
+		recommendations = append(recommendations, recommendation)
+		//recommendations = appendScaleUpRecommendation(recommendations, recommendation)
 	}
 	recommenderRunResultLogPath := filepath.Join(resultLogsDir, fmt.Sprintf("%s-util-info.json", simReq.ID))
 	recommenderResult = recommenderRunResult{
