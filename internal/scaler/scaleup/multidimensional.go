@@ -151,7 +151,7 @@ func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.
 	resultsLogPath := filepath.Join(resultLogsDir, fmt.Sprintf("%s-results.log", simReq.ID))
 	scoresLogPath := "/tmp/scores.log"
 	resultsLogFile, err := os.OpenFile(resultsLogPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	scoresLogFile, err := os.OpenFile(scoresLogPath, os.O_WRONLY|os.O_CREATE, 0644)
+	scoresLogFile, err := os.OpenFile(scoresLogPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		r.logger.Error("Failed to open scores log file", "error", err)
 	}
