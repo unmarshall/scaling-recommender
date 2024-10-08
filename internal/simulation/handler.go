@@ -192,11 +192,22 @@ func (h *Handler) createSimulationRequest(ctx context.Context, cs *gsc.ClusterSn
 func addGenericLabels(nodeTemplates map[string]gsc.NodeTemplate) {
 	for name, nt := range nodeTemplates {
 		ntLabels := nt.Labels
-		ntLabels[LabelArch] = DefaultArch
-		ntLabels[corev1.LabelArchStable] = DefaultArch
+		if ntLabels == nil {
+			ntLabels = make(map[string]string)
+		}
+		_, archLabelPresent := ntLabels[LabelArch]
+		_, archStableLabelPresent := ntLabels[corev1.LabelArchStable]
+		if !archLabelPresent && !archStableLabelPresent {
+			ntLabels[LabelArch] = DefaultArch
+			ntLabels[corev1.LabelArchStable] = DefaultArch
+		}
 
-		ntLabels[LabelOS] = DefaultOS
-		ntLabels[corev1.LabelOSStable] = DefaultOS
+		_, osLabelPresent := ntLabels[LabelOS]
+		_, osStableLabelPresent := ntLabels[corev1.LabelOSStable]
+		if !osLabelPresent && !osStableLabelPresent {
+			ntLabels[LabelOS] = DefaultOS
+			ntLabels[corev1.LabelOSStable] = DefaultOS
+		}
 
 		ntLabels[corev1.LabelInstanceType] = nt.InstanceType
 		ntLabels[corev1.LabelInstanceTypeStable] = nt.InstanceType
