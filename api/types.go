@@ -17,6 +17,7 @@ import (
 
 // AppConfig is the application configuration.
 type AppConfig struct {
+	Version                  string
 	Provider                 string
 	BinaryAssetsPath         string
 	TargetKVCLKubeConfigPath string
@@ -101,8 +102,9 @@ type RecommendationResponse struct {
 
 // types for logging scores
 type RunResultScores struct {
-	RunNumber int
-	Scores    []NodePoolInstanceScore
+	AppVersion string
+	RunNumber  int
+	Scores     []NodePoolInstanceScore
 }
 
 type NodePoolInstanceScore struct {

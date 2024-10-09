@@ -9,15 +9,17 @@ import (
 )
 
 type factory struct {
-	algos map[scaler.AlgoVariant]scaler.Recommender
+	algos      map[scaler.AlgoVariant]scaler.Recommender
+	appVersion string
 }
 
-func New(vcp kvclapi.ControlPlane, logger *slog.Logger) scaler.RecommenderFactory {
+func New(vcp kvclapi.ControlPlane, appVersion string, logger *slog.Logger) scaler.RecommenderFactory {
 	algos := make(map[scaler.AlgoVariant]scaler.Recommender)
 	// Register all scaling algorithms
-	algos[scaler.DefaultScaleUpAlgo] = scaleup.NewRecommender(vcp, logger)
+	algos[scaler.DefaultScaleUpAlgo] = scaleup.NewRecommender(vcp, appVersion, logger)
 	return &factory{
-		algos: algos,
+		algos:      algos,
+		appVersion: appVersion,
 	}
 }
 

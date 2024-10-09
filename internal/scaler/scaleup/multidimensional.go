@@ -49,6 +49,7 @@ type recommender struct {
 	scorer         scaler.Scorer
 	state          simulationState
 	nodeTemplates  map[string]gsc.NodeTemplate
+	appVersion     string
 	logger         *slog.Logger
 	resultLogsPath string
 }
@@ -127,13 +128,14 @@ func (s *simulationState) getUnscheduledPodObjectKeys() []client.ObjectKey {
 	return objKeys
 }
 
-func NewRecommender(vcp kvclapi.ControlPlane, baseLogger *slog.Logger) scaler.Recommender {
+func NewRecommender(vcp kvclapi.ControlPlane, appVersion string, baseLogger *slog.Logger) scaler.Recommender {
 	return &recommender{
-		nc:     vcp.NodeControl(),
-		pc:     vcp.PodControl(),
-		ec:     vcp.EventControl(),
-		client: vcp.Client(),
-		logger: baseLogger,
+		nc:         vcp.NodeControl(),
+		pc:         vcp.PodControl(),
+		ec:         vcp.EventControl(),
+		client:     vcp.Client(),
+		appVersion: appVersion,
+		logger:     baseLogger,
 	}
 }
 func (r *recommender) Run(ctx context.Context, scorer scaler.Scorer, simReq api.SimulationRequest) scaler.Result {
@@ -279,7 +281,7 @@ func getPodNamesForNodes(nodeToPods map[string][]podResourceInfo) map[string][]s
 
 func (r *recommender) runSimulation(ctx context.Context, runNum int, scores *[]api.RunResultScores) *runResult {
 	var results []*runResult
-	scoresForRun := api.RunResultScores{RunNumber: runNum}
+	scoresForRun := api.RunResultScores{RunNumber: runNum, AppVersion: r.appVersion}
 	resultCh := make(chan *runResult, r.computeTotalZonesAcrossNodePools())
 	r.triggerNodePoolSimulations(ctx, resultCh, runNum)
 

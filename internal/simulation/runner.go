@@ -58,7 +58,7 @@ func (e *engine) Start(ctx context.Context) error {
 	if err := e.createTargetClient(); err != nil {
 		return err
 	}
-	e.recommenderFactory = factory.New(e.virtualCluster, e.logger)
+	e.recommenderFactory = factory.New(e.virtualCluster, e.appConfig.Version, e.logger)
 	return e.startHTTPServer()
 }
 

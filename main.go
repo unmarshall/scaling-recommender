@@ -20,6 +20,9 @@ import (
 	"unmarshall/scaling-recommender/internal/app"
 )
 
+// GitCommitID is expected to be populated by go build command. Ex: go build -ldflags="-X main.GitCommitID=$(git rev-parse HEAD)"
+var GitCommitID string
+
 func main() {
 	defer app.OnExit()
 	utilruntime.Must(gardencorev1beta1.AddToScheme(scheme.Scheme))
@@ -28,6 +31,7 @@ func main() {
 	ctx := setupSignalHandler()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	appConfig, err := parseCmdArgs()
+	appConfig.Version = GitCommitID
 	if err != nil {
 		app.ExitAppWithError(1, fmt.Errorf("failed to parse command line arguments: %w", err))
 	}
@@ -36,7 +40,7 @@ func main() {
 		app.ExitAppWithError(1, fmt.Errorf("invalid configuration: %w", err))
 	}
 
-	logger.Info("starting scaling recommender environment", "appConfig", appConfig)
+	logger.Info("starting scaling recommender environment", "appConfig", appConfig, "appVersion", GitCommitID)
 	startExecutorEngine(ctx, appConfig, logger)
 	<-ctx.Done()
 }
